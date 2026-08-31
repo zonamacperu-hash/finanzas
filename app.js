@@ -7,17 +7,18 @@ const DEFAULT_STATE = {
     bank: 0      // Banco / Yape / Plin
   },
   funds: {
-    savings: 0,  // Fondo de Ahorro Acumulado (20%)
+    savings: 0,  // Fondo de Ahorro Total Acumulado (20%)
     tithe: 0     // Fondo de Diezmo Apartado (10%)
   },
+  projects: [
+    { id: 'p_viaje', name: 'Viaje / Vacaciones', emoji: '✈️', targetAmount: 3000, currentAmount: 0, deadline: '2026-12-31', category: 'Viajes' },
+    { id: 'p_equipos', name: 'Equipos de Trabajo / Laptop', emoji: '💻', targetAmount: 2500, currentAmount: 0, deadline: '2026-11-30', category: 'Trabajo' }
+  ],
   transactions: [],
   fixedPayments: [
     { id: 'f1', name: 'Alquiler / Vivienda', amount: 600, dueDay: 5, category: 'Vivienda', isPaidThisMonth: false, lastPaidMonth: '' },
     { id: 'f2', name: 'Servicios (Luz, Agua)', amount: 120, dueDay: 15, category: 'Servicios', isPaidThisMonth: false, lastPaidMonth: '' },
     { id: 'f3', name: 'Internet y Celular', amount: 85, dueDay: 20, category: 'Conectividad', isPaidThisMonth: false, lastPaidMonth: '' }
-  ],
-  savingsGoals: [
-    { id: 'g1', name: 'Fondo de Emergencia (3 Meses)', targetAmount: 2500, currentAmount: 0 }
   ],
   titheDeliveries: [],
   config: {
@@ -59,10 +60,10 @@ window.addEventListener('DOMContentLoaded', () => {
 // Setup default form dates to today
 function initFormDates() {
   const today = new Date().toISOString().split('T')[0];
-  const dateInputs = ['inp-ingreso-fecha', 'inp-gasto-fecha', 'inp-diezmo-fecha'];
+  const dateInputs = ['inp-ingreso-fecha', 'inp-gasto-fecha', 'inp-diezmo-fecha', 'inp-proy-fecha'];
   dateInputs.forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.value = today;
+    if (el && !el.value) el.value = today;
   });
 }
 
@@ -103,13 +104,27 @@ function loadSavedState() {
     try {
       const parsed = JSON.parse(saved);
       state = Object.assign({}, DEFAULT_STATE, parsed);
-      // Ensure sub-objects exist
       state.accounts = Object.assign({}, DEFAULT_STATE.accounts, parsed.accounts || {});
       state.funds = Object.assign({}, DEFAULT_STATE.funds, parsed.funds || {});
       state.config = Object.assign({}, DEFAULT_STATE.config, parsed.config || {});
       if (!Array.isArray(state.transactions)) state.transactions = [];
       if (!Array.isArray(state.fixedPayments)) state.fixedPayments = DEFAULT_STATE.fixedPayments;
-      if (!Array.isArray(state.savingsGoals)) state.savingsGoals = DEFAULT_STATE.savingsGoals;
+      if (!Array.isArray(state.projects)) {
+        // Migration from old savingsGoals if exists
+        if (Array.isArray(parsed.savingsGoals) && parsed.savingsGoals.length > 0) {
+          state.projects = parsed.savingsGoals.map(g => ({
+            id: g.id || 'p_' + Date.now(),
+            name: g.name,
+            emoji: '🎯',
+            targetAmount: g.targetAmount,
+            currentAmount: g.currentAmount || 0,
+            deadline: '',
+            category: 'Ahorro'
+          }));
+        } else {
+          state.projects = DEFAULT_STATE.projects;
+        }
+      }
       if (!Array.isArray(state.titheDeliveries)) state.titheDeliveries = [];
     } catch (e) {
       console.error('Error parseando estado local', e);
@@ -131,7 +146,6 @@ function loadSavedState() {
     if (passInp) passInp.value = state.config.cloudPasscode || '';
   }
 
-  // Auto sync if enabled
   if (state.config && state.config.cloudSyncEnabled) {
     fetchCloudState();
   }
@@ -298,6 +312,24 @@ function getRemainingWorkDays() {
   return Math.max(1, workdays);
 }
 
+// Calculate remaining workdays between today and a target date
+function getRemainingWorkdaysUntil(targetDateStr) {
+  if (!targetDateStr) return 0;
+  const now = new Date();
+  const target = new Date(targetDateStr + 'T23:59:59');
+  if (target <= now) return 0;
+
+  let workdays = 0;
+  const cur = new Date(now);
+  while (cur <= target) {
+    if (cur.getDay() !== 6) { // Exclude Saturdays
+      workdays++;
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return Math.max(1, workdays);
+}
+
 // Calculate pending fixed obligations and daily quota
 function calculateDailyFixedQuota() {
   const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
@@ -405,6 +437,9 @@ function renderAdvisorInsight() {
     advisorText.innerHTML = `⚠️ <strong>Atención a tus Pagos Fijos:</strong> Tienes ${formatMoney(pendingFixed)} en cuentas por pagar este mes. Procura reservar <strong>${formatMoney(dailyQuota)}</strong> por cada día laboral (Dom-Vie) para cubrirlas sin contratiempos.`;
   } else if (tithe > 0) {
     advisorText.innerHTML = `🕊️ Tienes <strong>${formatMoney(tithe)}</strong> de diezmo acumulado listo para entregar en tu congregación. Tu fondo de ahorro actual es de <strong>${formatMoney(savings)}</strong>. ¡Excelente orden!`;
+  } else if (state.projects && state.projects.length > 0 && state.projects.some(p => (p.currentAmount / p.targetAmount) >= 0.5)) {
+    const topProj = state.projects.find(p => (p.currentAmount / p.targetAmount) >= 0.5);
+    advisorText.innerHTML = `✈️ <strong>¡Gran avance en tu meta!</strong> Tu proyecto <strong>${escapeHTML(topProj.name)}</strong> ya superó el 50% de ahorro. Sigue aportando en cada jornada.`;
   } else if (monthExpenses > (monthIncome * 0.70)) {
     advisorText.innerHTML = `💡 <strong>Consejo de Ahorro:</strong> Tus gastos del mes representan más del 70% de lo ingresado. Revisa la sección de Reportes para identificar y recortar posibles gastos hormiga.`;
   } else if (savings >= totalFixedMonthly * 3 && totalFixedMonthly > 0) {
@@ -455,7 +490,7 @@ function renderAccountsList() {
         <div class="tx-icon tithe">🛡️</div>
         <div class="tx-details">
           <h5>Bóveda de Ahorro (20%)</h5>
-          <div class="tx-meta">Fondo protegido e intocable</div>
+          <div class="tx-meta">Fondo protegido (Proyectos + Reserva)</div>
         </div>
       </div>
       <div class="tx-right">
@@ -524,6 +559,18 @@ function buildTxItemHTML(tx, showDelete = false) {
     sign = '⇄';
     amountClass = 'neutral';
     accountLabel = 'Transferencia';
+  } else if (tx.type === 'project_deposit') {
+    iconClass = 'savings';
+    iconEmoji = '📥';
+    sign = '→';
+    amountClass = 'neutral';
+    accountLabel = 'Aporte Proyecto';
+  } else if (tx.type === 'project_withdraw') {
+    iconClass = 'expense';
+    iconEmoji = '📤';
+    sign = '←';
+    amountClass = 'neg';
+    accountLabel = 'Uso Proyecto';
   }
 
   const deleteBtn = showDelete ? `
@@ -651,18 +698,24 @@ function deleteFixedBill(billId) {
   updateUI();
 }
 
-// Ahorros y Diezmos Management
+// Ahorros, Proyectos y Diezmos Management
 function renderAhorrosYDiezmos() {
   const titheAmount = Number(state.funds.tithe) || 0;
   const savingsAmount = Number(state.funds.savings) || 0;
   const totalMonthlyBills = state.fixedPayments.reduce((acc, b) => acc + Number(b.amount), 0);
 
+  // Calculate sum of project balances
+  const totalProjectSavings = (state.projects || []).reduce((acc, p) => acc + Number(p.currentAmount || 0), 0);
+  const freeEmergencyFund = Math.max(0, savingsAmount - totalProjectSavings);
+
   const titheBox = document.getElementById('tithe-box-amount');
   const savingsBox = document.getElementById('savings-box-amount');
   const savingsMonths = document.getElementById('savings-months-cushion');
+  const freeFundEl = document.getElementById('savings-free-fund');
 
   if (titheBox) titheBox.textContent = formatMoney(titheAmount);
   if (savingsBox) savingsBox.textContent = formatMoney(savingsAmount);
+  if (freeFundEl) freeFundEl.textContent = formatMoney(freeEmergencyFund);
 
   if (savingsMonths) {
     if (totalMonthlyBills > 0) {
@@ -672,6 +725,9 @@ function renderAhorrosYDiezmos() {
       savingsMonths.textContent = `Fondo de reserva disponible para imprevistos e inversión.`;
     }
   }
+
+  // Render Projects Grid
+  renderProjects();
 
   // Render Tithe Deliveries
   const titheContainer = document.getElementById('tithe-history-list');
@@ -699,36 +755,113 @@ function renderAhorrosYDiezmos() {
       `).join('');
     }
   }
+}
 
-  // Render Savings Goals
-  const goalsContainer = document.getElementById('savings-goals-list');
-  if (goalsContainer) {
-    const goals = state.savingsGoals || [];
-    if (goals.length === 0) {
-      goalsContainer.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); padding: 10px;">No has creado metas de ahorro aún.</p>`;
-    } else {
-      goalsContainer.innerHTML = goals.map(goal => {
-        const target = Number(goal.targetAmount) || 1;
-        const current = Math.min(target, savingsAmount);
-        const pct = Math.min(100, Math.round((current / target) * 100));
+// Render Projects (Sinking Funds) Cards
+function renderProjects() {
+  const container = document.getElementById('projects-container');
+  if (!container) return;
 
-        return `
-          <div class="tx-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <h5 style="font-size: 0.95rem;">${escapeHTML(goal.name)}</h5>
-                <span style="font-size: 0.75rem; color: var(--text-muted);">${formatMoney(current)} de ${formatMoney(target)}</span>
-              </div>
-              <span class="alloc-badge badge-blue">${pct}%</span>
-            </div>
-            <div class="progress-bar-container">
-              <div class="progress-fill fill-blue" style="width: ${pct}%;"></div>
-            </div>
+  const projects = state.projects || [];
+  populateProjectSelects();
+
+  if (projects.length === 0) {
+    container.innerHTML = `<p style="font-size: 0.85rem; color: var(--text-muted); padding: 20px; grid-column: 1/-1;">No tienes proyectos de ahorro aún. ¡Crea uno para tu viaje, equipo o meta pulsando <strong>+ Nuevo Proyecto</strong>!</p>`;
+    return;
+  }
+
+  container.innerHTML = projects.map(proj => {
+    const target = Number(proj.targetAmount) || 1;
+    const current = Number(proj.currentAmount) || 0;
+    const pct = Math.min(100, Math.round((current / target) * 100));
+    const isCompleted = current >= target;
+    const remaining = Math.max(0, target - current);
+
+    // Calculate daily pace if deadline set
+    let paceBadge = '';
+    if (!isCompleted && proj.deadline) {
+      const remainingWorkdays = getRemainingWorkdaysUntil(proj.deadline);
+      if (remainingWorkdays > 0) {
+        const dailyReq = remaining / remainingWorkdays;
+        paceBadge = `
+          <div class="project-daily-pace">
+            <span>⚡ Meta:</span>
+            <span>${formatMoney(dailyReq)} / día laboral (${remainingWorkdays} días rest.)</span>
           </div>
         `;
-      }).join('');
+      }
+    } else if (isCompleted) {
+      paceBadge = `
+        <div class="project-daily-pace" style="color: var(--emerald-light); background: rgba(16, 185, 129, 0.15);">
+          <span>🎉 ¡Meta de ahorro 100% completada!</span>
+        </div>
+      `;
     }
-  }
+
+    return `
+      <div class="project-card ${isCompleted ? 'completed' : ''}">
+        <div>
+          <div class="project-header">
+            <div class="project-brand">
+              <div class="project-icon-badge">${proj.emoji || '🎯'}</div>
+              <div class="project-title-box">
+                <h4>${escapeHTML(proj.name)}</h4>
+                <span>${escapeHTML(proj.category || 'Meta')}${proj.deadline ? ` • Límite: ${proj.deadline}` : ''}</span>
+              </div>
+            </div>
+            <span class="alloc-badge ${isCompleted ? 'badge-emerald' : 'badge-blue'}">${pct}%</span>
+          </div>
+
+          <div class="project-amounts">
+            <div class="project-current-val">${formatMoney(current)}</div>
+            <div class="project-target-val">de ${formatMoney(target)}</div>
+          </div>
+
+          <div class="progress-bar-container">
+            <div class="progress-fill ${isCompleted ? 'fill-emerald' : 'fill-blue'}" style="width: ${pct}%;"></div>
+          </div>
+
+          ${paceBadge}
+        </div>
+
+        <div class="project-actions">
+          <button class="btn-project-action btn-primary" onclick="openAportarModalFor('${proj.id}')">
+            + Aportar
+          </button>
+          <button class="btn-project-action btn-ghost" onclick="openUsarModalFor('${proj.id}')">
+            - Usar / Retirar
+          </button>
+          <button class="tx-delete-btn" onclick="deleteProyecto('${proj.id}')" title="Eliminar proyecto">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Populate Project dropdowns in modals
+function populateProjectSelects() {
+  const aporteSelect = document.getElementById('inp-aporte-proy-id');
+  const usarSelect = document.getElementById('inp-usar-proy-id');
+  const projects = state.projects || [];
+
+  const options = projects.map(p => `<option value="${p.id}">${p.emoji || '🎯'} ${escapeHTML(p.name)} (${formatMoney(p.currentAmount)})</option>`).join('');
+
+  if (aporteSelect) aporteSelect.innerHTML = options || '<option value="">No hay proyectos</option>';
+  if (usarSelect) usarSelect.innerHTML = options || '<option value="">No hay proyectos</option>';
+}
+
+function openAportarModalFor(projectId) {
+  openModal('modal-aportar-proyecto');
+  const select = document.getElementById('inp-aporte-proy-id');
+  if (select) select.value = projectId;
+}
+
+function openUsarModalFor(projectId) {
+  openModal('modal-usar-proyecto');
+  const select = document.getElementById('inp-usar-proy-id');
+  if (select) select.value = projectId;
 }
 
 // Visual Reports: Weekly Rhythm Chart & Category Breakdown
@@ -1064,35 +1197,187 @@ function submitEntregaDiezmo() {
   updateUI();
 }
 
-// 6. Submit Nueva Meta de Ahorro
-function submitNuevaMetaAhorro() {
-  const nombreInput = document.getElementById('inp-meta-nombre');
-  const montoInput = document.getElementById('inp-meta-monto');
+// 6. Submit Nuevo Proyecto de Ahorro
+function submitNuevoProyecto() {
+  const nombreInput = document.getElementById('inp-proy-nombre');
+  const emojiSelect = document.getElementById('inp-proy-emoji');
+  const montoInput = document.getElementById('inp-proy-monto');
+  const inicialInput = document.getElementById('inp-proy-inicial');
+  const fechaInput = document.getElementById('inp-proy-fecha');
 
   const nombre = nombreInput ? nombreInput.value.trim() : '';
-  const monto = parseFloat(montoInput ? montoInput.value : 0);
+  const emoji = emojiSelect ? emojiSelect.value : '✈️';
+  const targetAmount = parseFloat(montoInput ? montoInput.value : 0);
+  const initialAmount = parseFloat(inicialInput ? inicialInput.value : 0) || 0;
+  const deadline = fechaInput ? fechaInput.value : '';
 
-  if (!nombre || monto <= 0) {
-    alert('Ingresa un nombre y monto objetivo para la meta.');
+  if (!nombre || targetAmount <= 0) {
+    alert('Ingresa el nombre y un monto meta válido mayor a 0.');
     return;
   }
 
-  state.savingsGoals.push({
-    id: 'g_' + Date.now(),
+  if (!Array.isArray(state.projects)) state.projects = [];
+
+  const newProject = {
+    id: 'p_' + Date.now(),
     name: nombre,
-    targetAmount: monto,
-    currentAmount: 0
-  });
+    emoji: emoji,
+    targetAmount: targetAmount,
+    currentAmount: initialAmount,
+    deadline: deadline,
+    category: 'Proyecto'
+  };
+
+  state.projects.push(newProject);
+
+  // If initial amount > 0, reflect in savings
+  if (initialAmount > 0) {
+    state.funds.savings = (Number(state.funds.savings) || 0) + initialAmount;
+    state.transactions.unshift({
+      id: 'tx_' + Date.now(),
+      type: 'project_deposit',
+      amount: initialAmount,
+      accountId: 'cash',
+      category: 'Ahorro',
+      description: `Aporte inicial para ${emoji} ${nombre}`,
+      date: new Date().toISOString().split('T')[0],
+      createdAt: Date.now()
+    });
+  }
 
   nombreInput.value = '';
   montoInput.value = '';
-  closeModal('modal-meta-ahorro');
+  if (inicialInput) inicialInput.value = '0';
+  closeModal('modal-nuevo-proyecto');
 
   persistState();
   updateUI();
 }
 
-// 7. Delete Transaction
+// 7. Submit Aporte a Proyecto
+function submitAporteProyecto() {
+  const proySelect = document.getElementById('inp-aporte-proy-id');
+  const montoInput = document.getElementById('inp-aporte-proy-monto');
+  const origenSelect = document.getElementById('inp-aporte-proy-origen');
+  const descInput = document.getElementById('inp-aporte-proy-desc');
+
+  const proyId = proySelect ? proySelect.value : '';
+  const amount = parseFloat(montoInput ? montoInput.value : 0);
+  const origen = origenSelect ? origenSelect.value : 'cash';
+  const desc = (descInput && descInput.value.trim()) ? descInput.value.trim() : 'Aporte a proyecto';
+
+  if (!proyId) {
+    alert('Selecciona un proyecto.');
+    return;
+  }
+  if (!amount || amount <= 0) {
+    alert('Ingresa un monto válido para aportar.');
+    return;
+  }
+
+  const project = state.projects.find(p => p.id === proyId);
+  if (!project) return;
+
+  // Deduct from origin
+  if (origen === 'cash' || origen === 'bank') {
+    state.accounts[origen] = (Number(state.accounts[origen]) || 0) - amount;
+    state.funds.savings = (Number(state.funds.savings) || 0) + amount;
+  } else if (origen === 'savings_free') {
+    // Coming from general savings pool, savings total stays same, project current increases
+  }
+
+  project.currentAmount = (Number(project.currentAmount) || 0) + amount;
+
+  state.transactions.unshift({
+    id: 'tx_' + Date.now(),
+    type: 'project_deposit',
+    amount: amount,
+    accountId: origen === 'savings_free' ? 'savings' : origen,
+    category: 'Proyectos',
+    description: `Aporte a ${project.emoji || '🎯'} ${project.name}: ${desc}`,
+    date: new Date().toISOString().split('T')[0],
+    createdAt: Date.now()
+  });
+
+  montoInput.value = '';
+  if (descInput) descInput.value = '';
+  closeModal('modal-aportar-proyecto');
+
+  persistState();
+  updateUI();
+}
+
+// 8. Submit Usar / Retirar Dinero de Proyecto
+function submitUsarProyecto() {
+  const proySelect = document.getElementById('inp-usar-proy-id');
+  const montoInput = document.getElementById('inp-usar-proy-monto');
+  const destinoSelect = document.getElementById('inp-usar-proy-destino');
+  const descInput = document.getElementById('inp-usar-proy-desc');
+
+  const proyId = proySelect ? proySelect.value : '';
+  const amount = parseFloat(montoInput ? montoInput.value : 0);
+  const destino = destinoSelect ? destinoSelect.value : 'expense';
+  const desc = (descInput && descInput.value.trim()) ? descInput.value.trim() : 'Uso de fondos';
+
+  if (!proyId) {
+    alert('Selecciona un proyecto.');
+    return;
+  }
+  if (!amount || amount <= 0) {
+    alert('Ingresa un monto válido.');
+    return;
+  }
+
+  const project = state.projects.find(p => p.id === proyId);
+  if (!project) return;
+
+  if (amount > Number(project.currentAmount || 0)) {
+    alert(`El proyecto solo cuenta con ${formatMoney(project.currentAmount)} disponibles.`);
+    return;
+  }
+
+  // Deduct from project
+  project.currentAmount = (Number(project.currentAmount) || 0) - amount;
+  state.funds.savings = Math.max(0, (Number(state.funds.savings) || 0) - amount);
+
+  if (destino === 'cash') {
+    state.accounts.cash = (Number(state.accounts.cash) || 0) + amount;
+  } else if (destino === 'bank') {
+    state.accounts.bank = (Number(state.accounts.bank) || 0) + amount;
+  }
+
+  state.transactions.unshift({
+    id: 'tx_' + Date.now(),
+    type: destino === 'expense' ? 'expense' : 'transfer',
+    amount: amount,
+    accountId: destino === 'expense' ? 'savings' : 'savings',
+    toAccountId: destino !== 'expense' ? destino : null,
+    category: 'Proyectos',
+    description: `Gasto de ${project.emoji || '🎯'} ${project.name}: ${desc}`,
+    date: new Date().toISOString().split('T')[0],
+    createdAt: Date.now()
+  });
+
+  montoInput.value = '';
+  if (descInput) descInput.value = '';
+  closeModal('modal-usar-proyecto');
+
+  persistState();
+  updateUI();
+}
+
+function deleteProyecto(projectId) {
+  const project = (state.projects || []).find(p => p.id === projectId);
+  if (!project) return;
+
+  if (confirm(`¿Deseas eliminar el proyecto "${project.name}"? Los fondos acumulados (${formatMoney(project.currentAmount)}) permanecerán en tu fondo de ahorro libre.`)) {
+    state.projects = state.projects.filter(p => p.id !== projectId);
+    persistState();
+    updateUI();
+  }
+}
+
+// 9. Delete Transaction
 function deleteTransaction(txId) {
   if (!confirm('¿Deseas eliminar este movimiento del historial?')) return;
   state.transactions = state.transactions.filter(t => t.id !== txId);

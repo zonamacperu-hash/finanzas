@@ -68,7 +68,7 @@
       </button>
       <button class="nav-item" data-view="view-ahorros">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-        <span>Ahorro & Diezmo</span>
+        <span>Proyectos & Ahorro</span>
       </button>
       <button class="nav-item" data-view="view-reportes">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
@@ -351,8 +351,29 @@
       </div>
     </section>
 
-    <!-- 4. AHORROS & DIEZMOS VIEW -->
+    <!-- 4. PROYECTOS & AHORROS VIEW -->
     <section id="view-ahorros" class="view-section">
+      
+      <!-- Sinking Funds / Proyectos de Ahorro Específicos -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">
+              <svg style="color: var(--blue-light);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              <span>Proyectos & Bolsillos de Ahorro con Propósito</span>
+            </h3>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">
+              Crea bolsillos de ahorro específicos (Viajes, Equipos de trabajo, Vehículo, Proyectos) con metas y fechas límite.
+            </p>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('modal-nuevo-proyecto')">+ Nuevo Proyecto</button>
+        </div>
+
+        <div class="projects-grid" id="projects-container">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
       <div class="grid-2">
         
         <!-- Diezmo Section (10%) -->
@@ -384,27 +405,35 @@
           </div>
         </div>
 
-        <!-- Ahorro Section (20%) -->
+        <!-- Bóveda General de Ahorro / Emergencia (20%) -->
         <div class="card">
           <div class="card-header">
             <h3 class="card-title">
-              <svg style="color: var(--blue-light);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-              <span>Bóveda de Ahorro (20%)</span>
+              <svg style="color: var(--blue-light);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+              <span>Fondo General de Reserva (20%)</span>
             </h3>
-            <button class="btn-quick btn-quick-secondary" onclick="openModal('modal-meta-ahorro')">+ Nueva Meta</button>
+            <span class="alloc-badge badge-blue">Colchón</span>
           </div>
 
           <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px;">
-            <div style="font-size: 0.82rem; color: var(--blue-light); font-weight: 700; text-transform: uppercase;">Saldo Total Ahorrado</div>
+            <div style="font-size: 0.82rem; color: var(--blue-light); font-weight: 700; text-transform: uppercase;">Saldo Total Ahorrado (Fondo Libre + Proyectos)</div>
             <div style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; color: #ffffff; margin: 6px 0;" id="savings-box-amount">S/ 0.00</div>
             <p style="font-size: 0.78rem; color: var(--text-secondary);" id="savings-months-cushion">
               Fondo de emergencia equivalente a 0 meses de gastos fijos.
             </p>
           </div>
 
-          <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--text-secondary); margin: 20px 0 10px;">Tus Metas de Ahorro</h4>
-          <div id="savings-goals-list" class="tx-list">
-            <!-- Populated by JS -->
+          <div class="tx-item" style="background: rgba(255, 255, 255, 0.02); margin-top: 10px;">
+            <div class="tx-left">
+              <div class="tx-icon savings">🛡️</div>
+              <div class="tx-details">
+                <h5>Fondo de Emergencia Libre</h5>
+                <div class="tx-meta">No asignado a proyectos específicos</div>
+              </div>
+            </div>
+            <div class="tx-right">
+              <div class="tx-amount" style="color: var(--blue-light);" id="savings-free-fund">S/ 0.00</div>
+            </div>
           </div>
         </div>
 
@@ -811,35 +840,143 @@
     </div>
   </div>
 
-  <!-- 6. MODAL NUEVA META DE AHORRO -->
-  <div id="modal-meta-ahorro" class="modal-backdrop">
+  <!-- 6. MODAL NUEVO PROYECTO DE AHORRO -->
+  <div id="modal-nuevo-proyecto" class="modal-backdrop">
     <div class="modal-dialog">
       <div class="modal-header">
         <h3 class="modal-title" style="color: var(--blue-light);">
           <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-          <span>Nueva Meta de Ahorro</span>
+          <span>Crear Proyecto de Ahorro</span>
         </h3>
-        <button class="modal-close" onclick="closeModal('modal-meta-ahorro')">&times;</button>
+        <button class="modal-close" onclick="closeModal('modal-nuevo-proyecto')">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">Nombre de la Meta</label>
-          <input type="text" id="inp-meta-nombre" class="form-control" placeholder="Ej: Fondo de Emergencia 3 meses, Herramienta de trabajo...">
+          <label class="form-label">Nombre del Proyecto o Meta</label>
+          <input type="text" id="inp-proy-nombre" class="form-control" placeholder="Ej: Viaje a Cusco, Nueva Laptop, Mantenimiento...">
         </div>
 
         <div class="form-group">
-          <label class="form-label">Monto Objetivo</label>
-          <input type="number" id="inp-meta-monto" class="form-control form-control-mono" placeholder="0.00">
+          <label class="form-label">Ícono Identificador</label>
+          <select id="inp-proy-emoji" class="form-control" style="font-size: 1.1rem;">
+            <option value="✈️">✈️ Viajes / Vacaciones</option>
+            <option value="💻">💻 Trabajo / Tecnología</option>
+            <option value="🚗">🚗 Vehículo / Transporte</option>
+            <option value="🏠">🏠 Hogar / Muebles</option>
+            <option value="🎓">🎓 Educación / Cursos</option>
+            <option value="🎁">🎁 Regalos / Festividades</option>
+            <option value="🛡️">🛡️ Fondo de Emergencia</option>
+            <option value="🩺">🩺 Salud / Bienestar</option>
+            <option value="📦">📦 Otro Proyecto</option>
+          </select>
         </div>
 
         <div class="form-group">
-          <label class="form-label">Monto Inicial Aportado</label>
-          <input type="number" id="inp-meta-inicial" class="form-control form-control-mono" placeholder="0.00" value="0">
+          <label class="form-label">Monto Meta Objetivo</label>
+          <input type="number" id="inp-proy-monto" class="form-control form-control-mono" placeholder="0.00">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Aporte Inicial Opcional</label>
+          <input type="number" id="inp-proy-inicial" class="form-control form-control-mono" placeholder="0.00" value="0">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Fecha Objetivo / Límite</label>
+          <input type="date" id="inp-proy-fecha" class="form-control">
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeModal('modal-meta-ahorro')">Cancelar</button>
-        <button class="btn btn-blue" onclick="submitNuevaMetaAhorro()">Crear Meta</button>
+        <button class="btn btn-ghost" onclick="closeModal('modal-nuevo-proyecto')">Cancelar</button>
+        <button class="btn btn-blue" onclick="submitNuevoProyecto()">Crear Proyecto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. MODAL APORTAR A PROYECTO -->
+  <div id="modal-aportar-proyecto" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color: var(--emerald-light);">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          <span>Aportar a Proyecto de Ahorro</span>
+        </h3>
+        <button class="modal-close" onclick="closeModal('modal-aportar-proyecto')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Seleccionar Proyecto Destino</label>
+          <select id="inp-aporte-proy-id" class="form-control">
+            <!-- Populated by JS -->
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Monto a Aportar</label>
+          <input type="number" id="inp-aporte-proy-monto" class="form-control form-control-mono" placeholder="0.00">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Aportar desde</label>
+          <select id="inp-aporte-proy-origen" class="form-control">
+            <option value="cash">💵 Efectivo en Mano</option>
+            <option value="bank">📱 Banco / Yape / Plin</option>
+            <option value="savings_free">🛡️ Fondo de Emergencia Libre</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nota o Descripción</label>
+          <input type="text" id="inp-aporte-proy-desc" class="form-control" placeholder="Ej: Aporte de ganancia del día...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-aportar-proyecto')">Cancelar</button>
+        <button class="btn btn-primary" onclick="submitAporteProyecto()">Confirmar Aporte</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. MODAL USAR / RETIRAR DE PROYECTO -->
+  <div id="modal-usar-proyecto" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color: var(--rose-light);">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/></svg>
+          <span>Usar Dinero del Proyecto</span>
+        </h3>
+        <button class="modal-close" onclick="closeModal('modal-usar-proyecto')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Seleccionar Proyecto Origen</label>
+          <select id="inp-usar-proy-id" class="form-control">
+            <!-- Populated by JS -->
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Monto a Usar / Retirar</label>
+          <input type="number" id="inp-usar-proy-monto" class="form-control form-control-mono" placeholder="0.00">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Destino del Dinero</label>
+          <select id="inp-usar-proy-destino" class="form-control">
+            <option value="expense">🛒 Gasto Directo del Proyecto (Ej: Boletos, compra)</option>
+            <option value="cash">💵 Devolver a Efectivo en Mano</option>
+            <option value="bank">📱 Devolver a Banco / Yape</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Concepto del Gasto o Retiro</label>
+          <input type="text" id="inp-usar-proy-desc" class="form-control" placeholder="Ej: Compra de pasajes, pago de hotel...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-usar-proyecto')">Cancelar</button>
+        <button class="btn btn-danger" onclick="submitUsarProyecto()">Registrar Uso de Fondos</button>
       </div>
     </div>
   </div>
