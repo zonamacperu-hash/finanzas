@@ -1,7 +1,7 @@
 {
-  "name": "eFootball World Cup",
-  "short_name": "eFootball WC",
-  "description": "eFootball Tournament Manager PWA for 8 players.",
+  "name": "Finanzas",
+  "short_name": "Finanzas",
+  "description": "Finanzas Tournament Manager.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#020617",

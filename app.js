@@ -1,4 +1,4 @@
-// eFootball World Cup Tournament Manager - Application Logic
+// Finanzas Tournament Manager - Application Logic
 
 // Application State
 let state = {
@@ -11,7 +11,7 @@ let state = {
 };
 
 // LocalStorage Keys
-const STORAGE_KEY = 'efootball_tournament_state';
+const STORAGE_KEY = 'finanzas_tournament_state';
 
 // Pre-filled defaults for quick testing
 const DEFAULT_PLAYERS_A = ["Carlos", "Mateo", "Sofía", "Lucas"];
@@ -45,7 +45,14 @@ window.addEventListener('DOMContentLoaded', () => {
 // Load state from LocalStorage and Cloudflare API
 function loadState() {
   // 1. Instant local load (Fast feedback)
-  const savedState = localStorage.getItem(STORAGE_KEY);
+  let savedState = localStorage.getItem(STORAGE_KEY);
+  if (!savedState) {
+    // Graceful migration from previous key
+    savedState = localStorage.getItem('efootball_tournament_state');
+    if (savedState) {
+      localStorage.setItem(STORAGE_KEY, savedState);
+    }
+  }
   if (savedState) {
     try {
       state = JSON.parse(savedState);
@@ -1283,7 +1290,7 @@ function renderPlayoffs() {
 
 // ADMIN AUTHENTICATION FUNCTIONS
 function getIsAdmin() {
-  return sessionStorage.getItem('efootball_is_admin') === 'true';
+  return sessionStorage.getItem('finanzas_is_admin') === 'true' || sessionStorage.getItem('efootball_is_admin') === 'true';
 }
 
 function openAdminModal() {
@@ -1301,7 +1308,7 @@ function loginAdmin() {
   const passField = document.getElementById('admin-passcode');
   const errorMsg = document.getElementById('login-error-msg');
   if (passField.value === 'admin777') {
-    sessionStorage.setItem('efootball_is_admin', 'true');
+    sessionStorage.setItem('finanzas_is_admin', 'true');
     closeAdminModal();
     updateUI();
   } else {
@@ -1312,6 +1319,7 @@ function loginAdmin() {
 }
 
 function logoutAdmin() {
+  sessionStorage.removeItem('finanzas_is_admin');
   sessionStorage.removeItem('efootball_is_admin');
   updateUI();
 }
