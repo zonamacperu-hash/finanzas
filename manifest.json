@@ -1,11 +1,11 @@
 {
-  "name": "Finanzas",
+  "name": "Finanzas Pro - Control Financiero",
   "short_name": "Finanzas",
-  "description": "Finanzas Tournament Manager.",
+  "description": "Sistema de gestión financiera inteligente, caja diaria, diezmos, ahorros y pagos fijos.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#020617",
-  "theme_color": "#0f172a",
+  "background_color": "#090d16",
+  "theme_color": "#10b981",
   "orientation": "portrait-primary",
   "icons": [
     {

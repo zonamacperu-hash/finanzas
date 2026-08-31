@@ -1,1380 +1,1233 @@
-// Finanzas Tournament Manager - Application Logic
+// Finanzas Pro - Financial Engine & Application Logic
 
-// Application State
-let state = {
-  active: false,
-  players: [],      // 8 players: { id, name, pot, country }
-  teams: [],        // 4 teams: { id, name, player1, player2 }
-  fixtures: [],     // 3 rounds (Lunes, Martes, Jueves), each with 2 series
-  semifinals: null, // Weekend Semifinals: { sf1, sf2 }
-  grandFinal: null  // Weekend Grand Final series: { teamA_id, teamB_id, matches: [...] }
+// Initial Default State
+const DEFAULT_STATE = {
+  accounts: {
+    cash: 0,     // Efectivo en mano
+    bank: 0      // Banco / Yape / Plin
+  },
+  funds: {
+    savings: 0,  // Fondo de Ahorro Acumulado (20%)
+    tithe: 0     // Fondo de Diezmo Apartado (10%)
+  },
+  transactions: [],
+  fixedPayments: [
+    { id: 'f1', name: 'Alquiler / Vivienda', amount: 600, dueDay: 5, category: 'Vivienda', isPaidThisMonth: false, lastPaidMonth: '' },
+    { id: 'f2', name: 'Servicios (Luz, Agua)', amount: 120, dueDay: 15, category: 'Servicios', isPaidThisMonth: false, lastPaidMonth: '' },
+    { id: 'f3', name: 'Internet y Celular', amount: 85, dueDay: 20, category: 'Conectividad', isPaidThisMonth: false, lastPaidMonth: '' }
+  ],
+  savingsGoals: [
+    { id: 'g1', name: 'Fondo de Emergencia (3 Meses)', targetAmount: 2500, currentAmount: 0 }
+  ],
+  titheDeliveries: [],
+  config: {
+    currency: 'S/.',
+    tithePct: 10,
+    savingsPct: 20,
+    workDaysPerMonth: 26,
+    cloudPasscode: 'admin777',
+    cloudSyncEnabled: false
+  }
 };
 
-// LocalStorage Keys
-const STORAGE_KEY = 'finanzas_tournament_state';
+let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+const STORAGE_KEY = 'finanzas_pro_state_v1';
 
-// Pre-filled defaults for quick testing
-const DEFAULT_PLAYERS_A = ["Carlos", "Mateo", "Sofía", "Lucas"];
-const DEFAULT_PLAYERS_B = ["Diego", "Valentina", "Thiago", "Martina"];
-const DEFAULT_COUNTRIES = [
-  "Argentina", "Brasil", "Francia", "Inglaterra", 
-  "España", "Alemania", "Italia", "Portugal"
-];
-
-// Initialize App
+// DOM Initialization
 window.addEventListener('DOMContentLoaded', () => {
-  loadState();
-  initTabs();
-  
-  // Register service worker for PWA
+  loadSavedState();
+  initNavigation();
+  initFormDates();
+  runAllocationCalculator();
+  updateUI();
+
+  // Register PWA Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('Service Worker registrado con éxito', reg))
-      .catch(err => console.warn('Error al registrar Service Worker', err));
+      .then(reg => console.log('Finanzas PWA Service Worker registrado', reg))
+      .catch(err => console.warn('Error en Service Worker', err));
   }
 
-  // Live Cloud Database Polling: Fetch changes every 30 seconds
+  // Periodic Cloud Sync
   setInterval(() => {
-    // Only poll if the tab is visible to save battery/bandwidth
-    if (document.visibilityState === 'visible') {
-      fetchStateFromCloud();
+    if (state.config && state.config.cloudSyncEnabled && document.visibilityState === 'visible') {
+      fetchCloudState();
     }
   }, 30000);
 });
 
-// Load state from LocalStorage and Cloudflare API
-function loadState() {
-  // 1. Instant local load (Fast feedback)
-  let savedState = localStorage.getItem(STORAGE_KEY);
-  if (!savedState) {
-    // Graceful migration from previous key
-    savedState = localStorage.getItem('efootball_tournament_state');
-    if (savedState) {
-      localStorage.setItem(STORAGE_KEY, savedState);
-    }
-  }
-  if (savedState) {
-    try {
-      state = JSON.parse(savedState);
-      updateUI();
-    } catch (e) {
-      console.error("Error parsing saved state", e);
-    }
-  } else {
-    updateUI();
-  }
-
-  // 2. Fetch live global state from cloud database
-  fetchStateFromCloud();
-}
-
-async function fetchStateFromCloud() {
-  try {
-    const res = await fetch('./api/state');
-    if (res.ok) {
-      const cloudState = await res.json();
-      if (cloudState && 'active' in cloudState) {
-        // Compare with local state to see if it changed
-        const localStr = localStorage.getItem(STORAGE_KEY) || '';
-        const cloudStr = JSON.stringify(cloudState);
-        if (localStr !== cloudStr) {
-          state = cloudState;
-          localStorage.setItem(STORAGE_KEY, cloudStr);
-          updateUI();
-        }
-      }
-    }
-  } catch (err) {
-    console.warn("Cloud Sync: Error al conectar con la base de datos", err);
-  }
-}
-
-// Save state to LocalStorage and Cloudflare API
-function saveState() {
-  const stateStr = JSON.stringify(state);
-  localStorage.setItem(STORAGE_KEY, stateStr);
-  
-  // If admin, sync to cloud database
-  if (getIsAdmin()) {
-    syncStateToCloud(stateStr);
-  }
-}
-
-async function syncStateToCloud(stateStr) {
-  try {
-    const res = await fetch('./api/state', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'admin777' // Backend API admin validation
-      },
-      body: stateStr
-    });
-    if (!res.ok) {
-      console.warn("Cloud Sync: Fallo al guardar en la nube", res.statusText);
-    }
-  } catch (err) {
-    console.error("Cloud Sync: Error de red al sincronizar", err);
-  }
-}
-
-// Reset/Clean Tournament (Triggers custom confirmation modal)
-function resetTournament() {
-  if (!getIsAdmin()) {
-    alert("Operación denegada. Debes iniciar sesión como Administrador para reiniciar el torneo.");
-    return;
-  }
-  document.getElementById('confirm-modal').style.display = 'flex';
-}
-
-function closeConfirmModal() {
-  document.getElementById('confirm-modal').style.display = 'none';
-}
-
-function executeReset() {
-  closeConfirmModal();
-
-  state = {
-    active: false,
-    players: [],
-    teams: [],
-    fixtures: [],
-    semifinals: null,
-    grandFinal: null
-  };
-  saveState();
-  
-  // Clear Sorteo result display and reset inputs to defaults
-  document.getElementById('draw-results-card').style.display = 'none';
-  
-  // Restore input defaults in DOM
-  for (let i = 1; i <= 4; i++) {
-    document.getElementById(`p-a${i}`).value = DEFAULT_PLAYERS_A[i-1];
-    document.getElementById(`p-b${i}`).value = DEFAULT_PLAYERS_B[i-1];
-  }
-  for (let i = 1; i <= 8; i++) {
-    document.getElementById(`c-${i}`).value = DEFAULT_COUNTRIES[i-1];
-  }
-
-  // Switch view to Sorteo
-  switchView('view-sorteo');
-  updateUI();
-}
-
-// Utility: Shuffle Array (Fisher-Yates)
-function shuffle(array) {
-  let currentIndex = array.length, randomIndex;
-  const newArray = [...array];
-
-  while (currentIndex !== 0) {
-    randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex--;
-    [newArray[currentIndex], newArray[randomIndex]] = [
-      newArray[randomIndex], newArray[currentIndex]];
-  }
-
-  return newArray;
-}
-
-// RUN THE DRAW (Sorteo)
-function runDraw() {
-  // 1. Gather values from DOM
-  const playersA = [];
-  const playersB = [];
-  const countries = [];
-
-  for (let i = 1; i <= 4; i++) {
-    const valA = document.getElementById(`p-a${i}`).value.trim();
-    const valB = document.getElementById(`p-b${i}`).value.trim();
-    if (!valA || !valB) {
-      alert("Por favor ingresa todos los nombres de los jugadores.");
-      return;
-    }
-    playersA.push(valA);
-    playersB.push(valB);
-  }
-
-  for (let i = 1; i <= 8; i++) {
-    const countryVal = document.getElementById(`c-${i}`).value.trim();
-    if (!countryVal) {
-      alert("Por favor ingresa todos los 8 países.");
-      return;
-    }
-    countries.push(countryVal);
-  }
-
-  // Check if manual assignment is enabled
-  const isManual = document.getElementById('manual-draw-checkbox').checked;
-
-  // Shuffle Countries if not manual
-  const shuffledCountries = isManual ? [...countries] : shuffle(countries);
-
-  // 2. Create player objects with countries assigned
-  const potAPlayers = playersA.map((name, idx) => ({
-    id: `A-${idx + 1}`,
-    name: name,
-    pot: 'A',
-    country: shuffledCountries[idx] // indices 0 to 3 (Country 1, 3, 5, 7 in order)
-  }));
-
-  const potBPlayers = playersB.map((name, idx) => ({
-    id: `B-${idx + 1}`,
-    name: name,
-    pot: 'B',
-    country: shuffledCountries[idx + 4] // indices 4 to 7 (Country 2, 4, 6, 8 in order)
-  }));
-
-  state.players = [...potAPlayers, ...potBPlayers];
-
-  // 3. Pair Pot A with Pot B to form 4 Teams
-  const finalA = isManual ? [...potAPlayers] : shuffle(potAPlayers);
-  const finalB = isManual ? [...potBPlayers] : shuffle(potBPlayers);
-
-  state.teams = [];
-  for (let i = 0; i < 4; i++) {
-    state.teams.push({
-      id: i + 1,
-      name: `Pareja ${i + 1}`,
-      player1: finalA[i],
-      player2: finalB[i]
-    });
-  }
-
-  // 4. Generate Fixtures (Round Robin - 3 Jornadas)
-  // Let T1, T2, T3, T4 represent Team IDs 1, 2, 3, 4
-  // Round 1: T1 vs T4, T2 vs T3
-  // Round 2: T1 vs T3, T4 vs T2
-  // Round 3: T1 vs T2, T3 vs T4
-  state.fixtures = [
-    {
-      id: 'lunes',
-      name: 'Jornada 1 (Lunes)',
-      series: [
-        createSeries('j1-s1', 1, 4),
-        createSeries('j1-s2', 2, 3)
-      ]
-    },
-    {
-      id: 'martes',
-      name: 'Jornada 2 (Martes)',
-      series: [
-        createSeries('j2-s1', 1, 3),
-        createSeries('j2-s2', 4, 2)
-      ]
-    },
-    {
-      id: 'jueves',
-      name: 'Jornada 3 (Jueves)',
-      series: [
-        createSeries('j3-s1', 1, 2),
-        createSeries('j3-s2', 3, 4)
-      ]
-    }
-  ];
-
-  state.semifinals = null;
-  state.grandFinal = null;
-  state.active = true;
-
-  saveState();
-  updateUI();
-
-  // Show draw results and highlight them
-  document.getElementById('draw-results-card').style.display = 'block';
-  renderPairs();
-
-  // Scroll to show pairings
-  document.getElementById('draw-results-card').scrollIntoView({ behavior: 'smooth' });
-}
-
-// Create a 5-match series between Team A and Team B
-function createSeries(seriesId, teamAId, teamBId) {
-  const teamA = state.teams.find(t => t.id === teamAId);
-  const teamB = state.teams.find(t => t.id === teamBId);
-
-  // Each series consists of:
-  // Match 1: Player 1 (A) vs Player 1 (B) [1vs1]
-  // Match 2: Player 1 (A) vs Player 2 (B) [1vs1]
-  // Match 3: Player 2 (A) vs Player 1 (B) [1vs1]
-  // Match 4: Player 2 (A) vs Player 2 (B) [1vs1]
-  // Match 5: Team A vs Team B [2vs2]
-  return {
-    id: seriesId,
-    teamA_id: teamAId,
-    teamB_id: teamBId,
-    matches: [
-      {
-        id: `${seriesId}-m1`,
-        type: '1vs1',
-        title: 'Partido 1 (1vs1)',
-        pA_name: `${teamA.player1.name} (${teamA.player1.country})`,
-        pB_name: `${teamB.player1.name} (${teamB.player1.country})`,
-        scoreA: null,
-        scoreB: null
-      },
-      {
-        id: `${seriesId}-m2`,
-        type: '1vs1',
-        title: 'Partido 2 (1vs1)',
-        pA_name: `${teamA.player1.name} (${teamA.player1.country})`,
-        pB_name: `${teamB.player2.name} (${teamB.player2.country})`,
-        scoreA: null,
-        scoreB: null
-      },
-      {
-        id: `${seriesId}-m3`,
-        type: '1vs1',
-        title: 'Partido 3 (1vs1)',
-        pA_name: `${teamA.player2.name} (${teamA.player2.country})`,
-        pB_name: `${teamB.player1.name} (${teamB.player1.country})`,
-        scoreA: null,
-        scoreB: null
-      },
-      {
-        id: `${seriesId}-m4`,
-        type: '1vs1',
-        title: 'Partido 4 (1vs1)',
-        pA_name: `${teamA.player2.name} (${teamA.player2.country})`,
-        pB_name: `${teamB.player2.name} (${teamB.player2.country})`,
-        scoreA: null,
-        scoreB: null
-      },
-      {
-        id: `${seriesId}-m5`,
-        type: '2vs2',
-        title: 'Partido 5 (2vs2)',
-        pA_name: `${teamA.name} [Doble]`,
-        pB_name: `${teamB.name} [Doble]`,
-        scoreA: null,
-        scoreB: null
-      }
-    ]
-  };
-}
-
-// Standings Calculator
-function calculateStandings() {
-  if (!state.active || state.teams.length === 0) return [];
-
-  // Initialize
-  const standings = state.teams.map(t => ({
-    id: t.id,
-    name: t.name,
-    player1: t.player1,
-    player2: t.player2,
-    pj: 0,
-    pg: 0,
-    pe: 0,
-    pp: 0,
-    gf: 0,
-    gc: 0,
-    points: 0 // Bolsa
-  }));
-
-  // Aggregate results from Round Robin fixtures
-  state.fixtures.forEach(jornada => {
-    jornada.series.forEach(series => {
-      series.matches.forEach(match => {
-        if (match.scoreA !== null && match.scoreB !== null) {
-          const sA = parseInt(match.scoreA);
-          const sB = parseInt(match.scoreB);
-          
-          if (isNaN(sA) || isNaN(sB)) return;
-
-          const teamA = standings.find(t => t.id === series.teamA_id);
-          const teamB = standings.find(t => t.id === series.teamB_id);
-
-          if (teamA && teamB) {
-            teamA.pj += 1;
-            teamB.pj += 1;
-            teamA.gf += sA;
-            teamB.gf += sB;
-            teamA.gc += sB;
-            teamB.gc += sA;
-
-            if (sA > sB) {
-              teamA.pg += 1;
-              teamA.points += 3;
-              teamB.pp += 1;
-            } else if (sA < sB) {
-              teamB.pg += 1;
-              teamB.points += 3;
-              teamA.pp += 1;
-            } else {
-              teamA.pe += 1;
-              teamB.pe += 1;
-              teamA.points += 1;
-              teamB.points += 1;
-            }
-          }
-        }
-      });
-    });
+// Setup default form dates to today
+function initFormDates() {
+  const today = new Date().toISOString().split('T')[0];
+  const dateInputs = ['inp-ingreso-fecha', 'inp-gasto-fecha', 'inp-diezmo-fecha'];
+  dateInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = today;
   });
-
-  // Sort Standings
-  // 1. Bolsa (Points)
-  // 2. Goal Difference (GF - GC)
-  // 3. Goals For (GF)
-  standings.sort((a, b) => {
-    const gdA = a.gf - a.gc;
-    const gdB = b.gf - b.gc;
-
-    if (b.points !== a.points) {
-      return b.points - a.points;
-    }
-    if (gdB !== gdA) {
-      return gdB - gdA;
-    }
-    return b.gf - a.gf;
-  });
-
-  return standings;
 }
 
-// Check and manage playoff stages (Semifinals and Grand Final)
-function checkAndGeneratePlayoffs() {
-  if (!state.active) return;
-
-  // 1. Check if all 30 matches of the Round Robin are complete
-  let roundRobinComplete = true;
-  let totalRRMatches = 0;
-
-  state.fixtures.forEach(j => {
-    j.series.forEach(s => {
-      s.matches.forEach(m => {
-        totalRRMatches++;
-        if (m.scoreA === null || m.scoreB === null || m.scoreA === '' || m.scoreB === '') {
-          roundRobinComplete = false;
-        }
-      });
-    });
-  });
-
-  if (roundRobinComplete && totalRRMatches > 0) {
-    const standings = calculateStandings();
-    if (standings.length >= 4) {
-      const top1 = standings[0];
-      const top2 = standings[1];
-      const top3 = standings[2];
-      const top4 = standings[3];
-
-      // If Semifinals are not created or teams changed, generate them
-      if (
-        !state.semifinals ||
-        state.semifinals.sf1.teamA_id !== top1.id ||
-        state.semifinals.sf1.teamB_id !== top4.id ||
-        state.semifinals.sf2.teamA_id !== top2.id ||
-        state.semifinals.sf2.teamB_id !== top3.id
-      ) {
-        state.semifinals = {
-          sf1: createPlayoffSeries('sf1', top1, top4, 'Semifinal 1'),
-          sf2: createPlayoffSeries('sf2', top2, top3, 'Semifinal 2')
-        };
-        // Reset Grand Final because Semis are fresh
-        state.grandFinal = null;
-      }
-    }
-  } else {
-    // Round Robin not complete -> no playoffs
-    state.semifinals = null;
-    state.grandFinal = null;
-    return;
-  }
-
-  // 2. Check if Semifinals are complete to generate Grand Final
-  if (state.semifinals) {
-    let sfComplete = true;
-    
-    // Check SF1
-    state.semifinals.sf1.matches.forEach(m => {
-      if (m.scoreA === null || m.scoreB === null || m.scoreA === '' || m.scoreB === '') {
-        sfComplete = false;
-      }
-    });
-
-    // Check SF2
-    state.semifinals.sf2.matches.forEach(m => {
-      if (m.scoreA === null || m.scoreB === null || m.scoreA === '' || m.scoreB === '') {
-        sfComplete = false;
-      }
-    });
-
-    if (sfComplete) {
-      const winnerSF1 = getPlayoffWinner(state.semifinals.sf1);
-      const winnerSF2 = getPlayoffWinner(state.semifinals.sf2);
-
-      if (winnerSF1 && winnerSF2) {
-        // Generate Grand Final if not exists or if finalists changed
-        if (
-          !state.grandFinal ||
-          state.grandFinal.teamA_id !== winnerSF1.id ||
-          state.grandFinal.teamB_id !== winnerSF2.id
-        ) {
-          state.grandFinal = createPlayoffSeries('gf', winnerSF1, winnerSF2, 'Gran Final');
-        }
-      }
-    } else {
-      state.grandFinal = null;
-    }
-  }
-}
-
-// Create a 5-match playoff series structure
-function createPlayoffSeries(seriesId, teamA, teamB, titlePrefix) {
-  return {
-    id: seriesId,
-    teamA_id: teamA.id,
-    teamB_id: teamB.id,
-    matches: [
-      {
-        id: `${seriesId}-m1`,
-        type: '1vs1',
-        title: `${titlePrefix} - Partido 1 (1vs1)`,
-        pA_name: `${teamA.player1.name} (${teamA.player1.country})`,
-        pB_name: `${teamB.player1.name} (${teamB.player1.country})`,
-        scoreA: null,
-        scoreB: null
-      },
-      {
-        id: `${seriesId}-m2`,
-        type: '1vs1',
-        title: `${titlePrefix} - Partido 2 (1vs1)`,
-        pA_name: `${teamA.player1.name} (${teamA.player1.country})`,
-        pB_name: `${teamB.player2.name} (${teamB.player2.country})`,
-        scoreA: null,
-        scoreB: null
-      },
-      {
-        id: `${seriesId}-m3`,
-        type: '1vs1',
-        title: `${titlePrefix} - Partido 3 (1vs1)`,
-        pA_name: `${teamA.player2.name} (${teamA.player2.country})`,
-        pB_name: `${teamB.player1.name} (${teamB.player1.country})`,
-        scoreA: null,
-        scoreB: null
-      },
-      {
-        id: `${seriesId}-m4`,
-        type: '1vs1',
-        title: `${titlePrefix} - Partido 4 (1vs1)`,
-        pA_name: `${teamA.player2.name} (${teamA.player2.country})`,
-        pB_name: `${teamB.player2.name} (${teamB.player2.country})`,
-        scoreA: null,
-        scoreB: null
-      },
-      {
-        id: `${seriesId}-m5`,
-        type: '2vs2',
-        title: `${titlePrefix} - Partido 5 (2vs2)`,
-        pA_name: `${teamA.name} [Doble]`,
-        pB_name: `${teamB.name} [Doble]`,
-        scoreA: null,
-        scoreB: null
-      }
-    ]
-  };
-}
-
-// Get the winner of a playoff series (handling tie-breakers)
-function getPlayoffWinner(series) {
-  const teamA = state.teams.find(t => t.id === series.teamA_id);
-  const teamB = state.teams.find(t => t.id === series.teamB_id);
-
-  let ptsA = 0;
-  let ptsB = 0;
-  let gfA = 0;
-  let gfB = 0;
-
-  series.matches.forEach(m => {
-    if (m.scoreA !== null && m.scoreB !== null && m.scoreA !== '' && m.scoreB !== '') {
-      const sA = parseInt(m.scoreA);
-      const sB = parseInt(m.scoreB);
-      gfA += sA;
-      gfB += sB;
-
-      if (sA > sB) ptsA += 3;
-      else if (sA < sB) ptsB += 3;
-      else {
-        ptsA += 1;
-        ptsB += 1;
-      }
-    }
-  });
-
-  if (ptsA > ptsB) return teamA;
-  if (ptsB > ptsA) return teamB;
-
-  // Tie breaker 1: Goal Difference in series
-  const gdA = gfA - gfB;
-  const gdB = gfB - gfA;
-  if (gdA > gdB) return teamA;
-  if (gdB > gdA) return teamB;
-
-  // Tie breaker 2: Goals For in series
-  if (gfA > gfB) return teamA;
-  if (gfB > gfA) return teamB;
-
-  // Tie breaker 3: Seed (Position in Round Robin standings)
-  const standings = calculateStandings();
-  const indexA = standings.findIndex(t => t.id === teamA.id);
-  const indexB = standings.findIndex(t => t.id === teamB.id);
-
-  if (indexA < indexB) return teamA; // Higher standings has lower index
-  return teamB;
-}
-
-// SAVE MATCH SCORE (Updates state dynamically and triggers recalculations)
-function saveScore(jornadaId, seriesId, matchId, teamIndex, value) {
-  const scoreVal = value === '' ? null : parseInt(value);
-
-  if (jornadaId === 'finde') {
-    // Weekend Playoffs Match Score Update
-    if (matchId.startsWith('sf1') && state.semifinals) {
-      const match = state.semifinals.sf1.matches.find(m => m.id === matchId);
-      if (match) {
-        if (teamIndex === 'A') match.scoreA = scoreVal;
-        if (teamIndex === 'B') match.scoreB = scoreVal;
-      }
-    } else if (matchId.startsWith('sf2') && state.semifinals) {
-      const match = state.semifinals.sf2.matches.find(m => m.id === matchId);
-      if (match) {
-        if (teamIndex === 'A') match.scoreA = scoreVal;
-        if (teamIndex === 'B') match.scoreB = scoreVal;
-      }
-    } else if (matchId.startsWith('gf') && state.grandFinal) {
-      const match = state.grandFinal.matches.find(m => m.id === matchId);
-      if (match) {
-        if (teamIndex === 'A') match.scoreA = scoreVal;
-        if (teamIndex === 'B') match.scoreB = scoreVal;
-      }
-    }
-  } else {
-    // Round Robin Match Score Update
-    const jornada = state.fixtures.find(j => j.id === jornadaId);
-    if (jornada) {
-      const series = jornada.series.find(s => s.id === seriesId);
-      if (series) {
-        const match = series.matches.find(m => m.id === matchId);
-        if (match) {
-          if (teamIndex === 'A') match.scoreA = scoreVal;
-          if (teamIndex === 'B') match.scoreB = scoreVal;
-        }
-      }
-    }
-  }
-
-  // Recalculate Playoffs
-  checkAndGeneratePlayoffs();
-  saveState();
-
-  // Dynamically update views
-  renderStandings();
-  updateRecoveryStats();
-  
-  if (jornadaId === 'finde') {
-    renderPlayoffs();
-  } else {
-    updateSeriesSummaryHeader(jornadaId, seriesId);
-  }
-}
-
-// Update the series accordion header points summary in the DOM without fully rebuilding
-function updateSeriesSummaryHeader(jornadaId, seriesId) {
-  const jornada = state.fixtures.find(j => j.id === jornadaId);
-  if (!jornada) return;
-  const series = jornada.series.find(s => s.id === seriesId);
-  if (!series) return;
-
-  const headerEl = document.querySelector(`.series-accordion[data-series-id="${seriesId}"] .series-scores-summary`);
-  const statusEl = document.querySelector(`.series-accordion[data-series-id="${seriesId}"] .series-status-badge`);
-  
-  if (headerEl && statusEl) {
-    const summary = getSeriesSummary(series);
-    headerEl.textContent = `Series: ${summary.ptsA} - ${summary.ptsB} pts`;
-    
-    if (summary.isComplete) {
-      statusEl.className = 'series-status-badge status-completed';
-      statusEl.textContent = 'Completado';
-    } else {
-      statusEl.className = 'series-status-badge status-pending';
-      statusEl.textContent = 'Pendiente';
-    }
-  }
-}
-
-// Calculate points gained inside a specific series
-function getSeriesSummary(series) {
-  let ptsA = 0;
-  let ptsB = 0;
-  let isComplete = true;
-
-  series.matches.forEach(m => {
-    if (m.scoreA !== null && m.scoreB !== null && m.scoreA !== '' && m.scoreB !== '') {
-      const sA = parseInt(m.scoreA);
-      const sB = parseInt(m.scoreB);
-      if (sA > sB) ptsA += 3;
-      else if (sA < sB) ptsB += 3;
-      else {
-        ptsA += 1;
-        ptsB += 1;
-      }
-    } else {
-      isComplete = false;
-    }
-  });
-
-  return { ptsA, ptsB, isComplete };
-}
-
-// Tab Switching
-function initTabs() {
-  const tabs = document.querySelectorAll('.nav-tab');
+// Navigation Tabs Manager
+function initNavigation() {
+  const tabs = document.querySelectorAll('.nav-item');
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
-      const targetView = tab.getAttribute('data-view');
-      switchView(targetView);
-      
-      // Update active nav-tab styling
-      tabs.forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-    });
-  });
-
-  // Day buttons navigation inside Fixture View
-  const dayBtns = document.querySelectorAll('.day-btn');
-  dayBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const targetDay = btn.getAttribute('data-day');
-      
-      // Update active day-btn styling
-      dayBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-
-      // Toggle display of day sections
-      const dayContents = document.querySelectorAll('.day-content');
-      dayContents.forEach(content => content.classList.remove('active'));
-      document.getElementById(`day-${targetDay}`).classList.add('active');
+      const viewId = tab.getAttribute('data-view');
+      switchTab(viewId);
     });
   });
 }
 
-function switchView(viewId) {
-  const views = document.querySelectorAll('.view');
-  views.forEach(v => v.classList.remove('active'));
-  document.getElementById(viewId).classList.add('active');
+function switchTab(viewId) {
+  // Update Tab buttons
+  document.querySelectorAll('.nav-item').forEach(t => {
+    t.classList.toggle('active', t.getAttribute('data-view') === viewId);
+  });
+
+  // Update View Sections
+  document.querySelectorAll('.view-section').forEach(v => {
+    v.classList.toggle('active', v.id === viewId);
+  });
+
+  // Refresh visual elements for the selected tab
+  if (viewId === 'view-reportes') {
+    renderWeeklyChart();
+    renderCategoryBreakdown();
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// UPDATE ALL VISUALS
-function updateUI() {
-  const isAdmin = getIsAdmin();
-
-  // Show/Hide locked vs unlocked draw config panel
-  const configLocked = document.getElementById('draw-config-card-locked');
-  const configUnlocked = document.getElementById('draw-config-card');
-  const syncCard = document.getElementById('admin-sync-card');
-  if (configLocked && configUnlocked) {
-    if (isAdmin) {
-      configLocked.style.display = 'none';
-      configUnlocked.style.display = 'block';
-      if (syncCard) syncCard.style.display = 'block';
-    } else {
-      configLocked.style.display = 'block';
-      configUnlocked.style.display = 'none';
-      if (syncCard) syncCard.style.display = 'none';
+// Storage & Cloud Persistence
+function loadSavedState() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      state = Object.assign({}, DEFAULT_STATE, parsed);
+      // Ensure sub-objects exist
+      state.accounts = Object.assign({}, DEFAULT_STATE.accounts, parsed.accounts || {});
+      state.funds = Object.assign({}, DEFAULT_STATE.funds, parsed.funds || {});
+      state.config = Object.assign({}, DEFAULT_STATE.config, parsed.config || {});
+      if (!Array.isArray(state.transactions)) state.transactions = [];
+      if (!Array.isArray(state.fixedPayments)) state.fixedPayments = DEFAULT_STATE.fixedPayments;
+      if (!Array.isArray(state.savingsGoals)) state.savingsGoals = DEFAULT_STATE.savingsGoals;
+      if (!Array.isArray(state.titheDeliveries)) state.titheDeliveries = [];
+    } catch (e) {
+      console.error('Error parseando estado local', e);
     }
   }
 
-  renderHeaderActions();
-  renderStandings();
-  renderFixtures();
-  renderPairs();
-  updateRecoveryStats();
-  renderPlayoffs();
-}
+  // Load config inputs
+  if (state.config) {
+    const currInp = document.getElementById('cfg-currency');
+    const titheInp = document.getElementById('cfg-tithe-pct');
+    const savInp = document.getElementById('cfg-savings-pct');
+    const workInp = document.getElementById('cfg-workdays');
+    const passInp = document.getElementById('cfg-cloud-passcode');
 
-// RENDER STANDINGS
-function renderStandings() {
-  const tbody = document.getElementById('standings-body');
-  if (!state.active) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="9" class="empty-placeholder">
-          <i class="icon-trophy"></i>
-          <p>El torneo aún no ha comenzado.</p>
-          <span style="font-size: 0.8rem; color: var(--text-secondary);">Realiza el sorteo de parejas en la pestaña Sorteo / Admin.</span>
-        </td>
-      </tr>
-    `;
-    return;
+    if (currInp) currInp.value = state.config.currency || 'S/.';
+    if (titheInp) titheInp.value = state.config.tithePct || 10;
+    if (savInp) savInp.value = state.config.savingsPct || 20;
+    if (workInp) workInp.value = state.config.workDaysPerMonth || 26;
+    if (passInp) passInp.value = state.config.cloudPasscode || '';
   }
 
-  const standings = calculateStandings();
-  let html = '';
-
-  standings.forEach((team, index) => {
-    const rank = index + 1;
-    const isGFZone = rank <= 2;
-    const rankClass = rank === 1 ? 'rank-1' : (rank === 2 ? 'rank-2' : '');
-    const gd = team.gf - team.gc;
-    const gdDisplay = gd > 0 ? `+${gd}` : gd;
-
-    html += `
-      <tr class="${isGFZone ? 'gf-zone' : ''} ${rankClass}">
-        <td>
-          <span class="rank-badge">${rank}</span>
-        </td>
-        <td>
-          <div class="table-team">
-            <span class="table-team-name">${team.name}</span>
-            <span class="table-team-details">
-              ${team.player1.name} (${team.player1.country}) & ${team.player2.name} (${team.player2.country})
-            </span>
-          </div>
-        </td>
-        <td style="text-align: center;">${team.pj}</td>
-        <td style="text-align: center;">${team.pg}</td>
-        <td style="text-align: center;">${team.pe}</td>
-        <td style="text-align: center;">${team.pp}</td>
-        <td style="text-align: center;">${team.gf}</td>
-        <td style="text-align: center;">${team.gc}</td>
-        <td style="text-align: center;" class="highlight-points">${team.points}</td>
-      </tr>
-    `;
-  });
-
-  tbody.innerHTML = html;
-}
-
-// RENDER DRAW RESULT (Sorteo / Admin screen)
-function renderPairs() {
-  const container = document.getElementById('pairs-container');
-  const resultsCard = document.getElementById('draw-results-card');
-
-  if (!state.active || state.teams.length === 0) {
-    resultsCard.style.display = 'none';
-    return;
+  // Auto sync if enabled
+  if (state.config && state.config.cloudSyncEnabled) {
+    fetchCloudState();
   }
-
-  resultsCard.style.display = 'block';
-  let html = '';
-
-  state.teams.forEach(team => {
-    html += `
-      <div class="pair-card">
-        <div class="pair-header">
-          <span class="pair-title">${team.name}</span>
-          <span style="font-size: 0.75rem; color: var(--accent-green); font-weight: 700; text-transform: uppercase;">Activo</span>
-        </div>
-        <div class="pair-members">
-          <div class="member">
-            <span class="member-name">${team.player1.name} <span class="pot-badge pot-badge-a">A</span></span>
-            <span class="member-country">${team.player1.country}</span>
-          </div>
-          <div class="member">
-            <span class="member-name">${team.player2.name} <span class="pot-badge pot-badge-b">B</span></span>
-            <span class="member-country">${team.player2.country}</span>
-          </div>
-        </div>
-      </div>
-    `;
-  });
-
-  container.innerHTML = html;
 }
 
-// RENDER FIXTURES (Lunes, Martes, Jueves)
-function renderFixtures() {
-  const days = ['lunes', 'martes', 'jueves'];
-  
-  days.forEach(dayId => {
-    const daySection = document.getElementById(`day-${dayId}`);
-    if (!state.active) {
-      daySection.innerHTML = `
-        <div class="empty-placeholder">
-          <i class="icon-calendar"></i>
-          <p>No hay jornadas disponibles.</p>
-          <span>Realiza el sorteo primero en la pestaña Sorteo / Admin.</span>
-        </div>
-      `;
-      return;
-    }
-
-    const dayFixture = state.fixtures.find(j => j.id === dayId);
-    if (!dayFixture) return;
-
-    let html = '';
-
-    dayFixture.series.forEach(series => {
-      const teamA = state.teams.find(t => t.id === series.teamA_id);
-      const teamB = state.teams.find(t => t.id === series.teamB_id);
-      
-      const summary = getSeriesSummary(series);
-      const statusClass = summary.isComplete ? 'status-completed' : 'status-pending';
-      const statusText = summary.isComplete ? 'Completado' : 'Pendiente';
-
-      html += `
-        <div class="series-accordion" data-series-id="${series.id}">
-          <div class="series-header" onclick="toggleAccordion('${series.id}')">
-            <div class="series-info">
-              <span class="series-title">${dayFixture.name.split(' ')[0]}</span>
-              <div class="series-team-display">
-                <span class="team-display-name">${teamA.name}</span>
-                <span class="team-display-vs">VS</span>
-                <span class="team-display-name">${teamB.name}</span>
-              </div>
-            </div>
-            <div class="series-summary">
-              <span class="series-scores-summary">Series: ${summary.ptsA} - ${summary.ptsB} pts</span>
-              <span class="series-status-badge ${statusClass}">${statusText}</span>
-              <span class="accordion-arrow"><i class="icon-chevron"></i></span>
-            </div>
-          </div>
-          <div class="series-details">
-            <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 12px; font-weight: 500; text-transform: uppercase;">
-              Detalles de los partidos (Win = 3pts, Draw = 1pt, Loss = 0pts)
-            </p>
-            ${renderMatchList(series.matches, dayId, series.id)}
-          </div>
-        </div>
-      `;
-    });
-
-    daySection.innerHTML = html;
-  });
+function persistState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (state.config && state.config.cloudSyncEnabled) {
+    pushCloudState();
+  }
 }
 
-// Generate HTML for the list of matches inside a series
-function renderMatchList(matches, dayId, seriesId) {
-  let html = '';
-  const disabledAttr = getIsAdmin() ? '' : 'disabled';
+// Cloudflare Pages API Integration
+async function fetchCloudState() {
+  const syncBadge = document.getElementById('sync-status');
+  const syncText = document.getElementById('sync-text');
 
-  matches.forEach(m => {
-    const valA = m.scoreA !== null ? m.scoreA : '';
-    const valB = m.scoreB !== null ? m.scoreB : '';
+  try {
+    const res = await fetch('./api/state');
+    if (!res.ok) throw new Error('API request failed');
+    const data = await res.json();
     
-    html += `
-      <div class="match-item">
-        <div class="match-type">${m.title}</div>
-        <div class="match-party-a">${m.pA_name}</div>
-        <div>
-          <input type="number" min="0" placeholder="-" class="match-score-input" value="${valA}" ${disabledAttr}
-                 onchange="saveScore('${dayId}', '${seriesId}', '${m.id}', 'A', this.value)">
-        </div>
-        <div class="match-score-separator">vs</div>
-        <div>
-          <input type="number" min="0" placeholder="-" class="match-score-input" value="${valB}" ${disabledAttr}
-                 onchange="saveScore('${dayId}', '${seriesId}', '${m.id}', 'B', this.value)">
-        </div>
-        <div class="match-party-b">${m.pB_name}</div>
-      </div>
-    `;
-  });
-  return html;
-}
-
-// Toggle accordion opening
-function toggleAccordion(seriesId) {
-  const accordion = document.querySelector(`.series-accordion[data-series-id="${seriesId}"]`);
-  if (accordion) {
-    accordion.classList.toggle('open');
-  }
-}
-
-// UPDATE RECOVERY STATS (Viernes)
-function updateRecoveryStats() {
-  const statPending = document.getElementById('stat-pending-matches');
-  const statGoals = document.getElementById('stat-total-goals');
-  const pendingList = document.getElementById('recovery-pending-list');
-
-  if (!state.active) {
-    if (statPending) statPending.textContent = '0';
-    if (statGoals) statGoals.textContent = '0';
-    if (pendingList) pendingList.innerHTML = '';
-    return;
-  }
-
-  let pendingMatchesCount = 0;
-  let totalGoals = 0;
-  let pendingHtml = '';
-
-  state.fixtures.forEach(j => {
-    j.series.forEach(s => {
-      s.matches.forEach(m => {
-        if (m.scoreA === null || m.scoreB === null || m.scoreA === '' || m.scoreB === '') {
-          pendingMatchesCount++;
-          pendingHtml += `
-            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; margin-bottom: 8px; font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <strong style="color: var(--accent-cyan);">${j.name.split(' ')[0]}</strong>: ${m.pA_name} vs ${m.pB_name}
-              </div>
-              <div style="font-size: 0.7rem; color: var(--accent-danger); font-weight: 700; text-transform: uppercase;">
-                Pendiente
-              </div>
-            </div>
-          `;
-        } else {
-          totalGoals += parseInt(m.scoreA) + parseInt(m.scoreB);
-        }
-      });
-    });
-  });
-
-  if (statPending) statPending.textContent = pendingMatchesCount;
-  if (statGoals) statGoals.textContent = totalGoals;
-
-  if (pendingList) {
-    if (pendingMatchesCount === 0) {
-      pendingList.innerHTML = `
-        <div style="text-align: center; color: var(--accent-green); padding: 10px; font-size: 0.9rem; font-weight: 600;">
-          <i class="icon-check"></i> ¡Todos los partidos del Round Robin están al día! Listos para el fin de semana.
-        </div>
-      `;
-    } else {
-      pendingList.innerHTML = `
-        <h4 style="font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px; font-weight: 700;">Partidos pendientes por disputar:</h4>
-        ${pendingHtml}
-      `;
+    if (data && !data.empty && data.transactions) {
+      state = data;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      updateUI();
+    }
+    
+    if (syncBadge && syncText) {
+      syncBadge.className = 'status-badge sync-ok';
+      syncText.textContent = 'Nube Sincronizada';
+    }
+  } catch (err) {
+    if (syncBadge && syncText) {
+      syncBadge.className = 'status-badge';
+      syncText.textContent = 'Local / Offline';
     }
   }
 }
 
-// RENDER PLAYOFFS (Semifinals on Saturday, Grand Final on Sunday)
-function renderPlayoffs() {
-  const container = document.getElementById('day-finde');
-  if (!state.active) {
-    container.innerHTML = `
-      <div class="empty-placeholder">
-        <i class="icon-calendar"></i>
-        <p>No hay jornadas disponibles.</p>
-        <span>Realiza el sorteo primero en la pestaña Sorteo / Admin.</span>
-      </div>
-    `;
-    return;
+async function pushCloudState() {
+  const passcode = state.config.cloudPasscode || 'admin777';
+  const syncBadge = document.getElementById('sync-status');
+  const syncText = document.getElementById('sync-text');
+
+  if (syncBadge && syncText) {
+    syncBadge.className = 'status-badge sync-working';
+    syncText.textContent = 'Guardando en la Nube...';
   }
 
-  // 1. Check if Semifinals are unlocked
-  if (!state.semifinals) {
-    container.innerHTML = `
-      <div class="card">
-        <div class="recovery-container">
-          <i class="icon-trophy" style="color: rgba(255,255,255,0.1); filter: none;"></i>
-          <h2 class="recovery-title" style="color: var(--text-secondary);">Fase Final Bloqueada</h2>
-          <p class="recovery-desc">
-            Las Semifinales se disputarán el **Sábado** y la Gran Final el **Domingo**. Completa todos los 30 partidos del Round Robin (Lunes, Martes y Jueves) para desbloquear las fases finales.
-          </p>
-        </div>
-      </div>
-    `;
-    return;
-  }
-
-  // 2. We have Semifinals generated. Let's render Semifinals
-  const teamSF1_A = state.teams.find(t => t.id === state.semifinals.sf1.teamA_id);
-  const teamSF1_B = state.teams.find(t => t.id === state.semifinals.sf1.teamB_id);
-  const teamSF2_A = state.teams.find(t => t.id === state.semifinals.sf2.teamA_id);
-  const teamSF2_B = state.teams.find(t => t.id === state.semifinals.sf2.teamB_id);
-
-  const summarySF1 = getSeriesSummary(state.semifinals.sf1);
-  const summarySF2 = getSeriesSummary(state.semifinals.sf2);
-
-  const statusSF1Class = summarySF1.isComplete ? 'status-completed' : 'status-pending';
-  const statusSF1Text = summarySF1.isComplete ? 'Completado' : 'Pendiente';
-  const statusSF2Class = summarySF2.isComplete ? 'status-completed' : 'status-pending';
-  const statusSF2Text = summarySF2.isComplete ? 'Completado' : 'Pendiente';
-
-  let html = `
-    <!-- Semifinals Block -->
-    <div style="margin-bottom: 30px;">
-      <h3 style="font-size: 1.1rem; color: var(--accent-cyan); text-transform: uppercase; margin-bottom: 12px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
-        📅 Sábado: Semifinales (5 Partidos)
-      </h3>
-      
-      <!-- SF 1 Accordion -->
-      <div class="series-accordion" data-series-id="sf1">
-        <div class="series-header" onclick="toggleAccordion('sf1')">
-          <div class="series-info">
-            <span class="series-title" style="color: var(--accent-cyan);">SF 1</span>
-            <div class="series-team-display">
-              <span class="team-display-name">${teamSF1_A.name}</span>
-              <span class="team-display-vs">VS</span>
-              <span class="team-display-name">${teamSF1_B.name}</span>
-            </div>
-          </div>
-          <div class="series-summary">
-            <span class="series-scores-summary">Series: ${summarySF1.ptsA} - ${summarySF1.ptsB} pts</span>
-            <span class="series-status-badge ${statusSF1Class}">${statusSF1Text}</span>
-            <span class="accordion-arrow"><i class="icon-chevron"></i></span>
-          </div>
-        </div>
-        <div class="series-details">
-          <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 12px; font-weight: 500; text-transform: uppercase;">
-            Si hay empate absoluto en puntos y goles, clasifica el mejor posicionado en el Round Robin (Seed).
-          </p>
-          ${renderMatchList(state.semifinals.sf1.matches, 'finde', 'sf1')}
-        </div>
-      </div>
-
-      <!-- SF 2 Accordion -->
-      <div class="series-accordion" data-series-id="sf2">
-        <div class="series-header" onclick="toggleAccordion('sf2')">
-          <div class="series-info">
-            <span class="series-title" style="color: var(--accent-cyan);">SF 2</span>
-            <div class="series-team-display">
-              <span class="team-display-name">${teamSF2_A.name}</span>
-              <span class="team-display-vs">VS</span>
-              <span class="team-display-name">${teamSF2_B.name}</span>
-            </div>
-          </div>
-          <div class="series-summary">
-            <span class="series-scores-summary">Series: ${summarySF2.ptsA} - ${summarySF2.ptsB} pts</span>
-            <span class="series-status-badge ${statusSF2Class}">${statusSF2Text}</span>
-            <span class="accordion-arrow"><i class="icon-chevron"></i></span>
-          </div>
-        </div>
-        <div class="series-details">
-          <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 12px; font-weight: 500; text-transform: uppercase;">
-            Si hay empate absoluto en puntos y goles, clasifica el mejor posicionado en el Round Robin (Seed).
-          </p>
-          ${renderMatchList(state.semifinals.sf2.matches, 'finde', 'sf2')}
-        </div>
-      </div>
-    </div>
-  `;
-
-  // 3. Render Grand Final (Domingo)
-  html += `
-    <div style="margin-top: 20px;">
-      <h3 style="font-size: 1.1rem; color: var(--accent-gold); text-transform: uppercase; margin-bottom: 12px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
-        🏆 Domingo: Gran Final (5 Partidos)
-      </h3>
-  `;
-
-  if (!state.grandFinal) {
-    html += `
-        <div class="card" style="border: 1px dashed rgba(251, 191, 36, 0.2); background: rgba(255,255,255,0.01);">
-          <div style="text-align: center; padding: 24px; color: var(--text-secondary); font-size: 0.9rem;">
-            <i class="icon-clock" style="font-size: 2rem; color: rgba(251, 191, 36, 0.3); display: block; margin-bottom: 8px;"></i>
-            La Gran Final está bloqueada. Completa las dos Semifinales de arriba para conocer a los clasificados.
-          </div>
-        </div>
-      </div>
-    `;
-    container.innerHTML = html;
-    return;
-  }
-
-  // Grand Final Unlocked
-  const teamGF_A = state.teams.find(t => t.id === state.grandFinal.teamA_id);
-  const teamGF_B = state.teams.find(t => t.id === state.grandFinal.teamB_id);
-
-  // Calculate GF Stats
-  let ptsGF_A = 0;
-  let ptsGF_B = 0;
-  let gfGF_A = 0;
-  let gfGF_B = 0;
-  let gfMatchesPlayed = 0;
-
-  state.grandFinal.matches.forEach(m => {
-    if (m.scoreA !== null && m.scoreB !== null && m.scoreA !== '' && m.scoreB !== '') {
-      gfMatchesPlayed++;
-      const sA = parseInt(m.scoreA);
-      const sB = parseInt(m.scoreB);
-      gfGF_A += sA;
-      gfGF_B += sB;
-
-      if (sA > sB) ptsGF_A += 3;
-      else if (sA < sB) ptsGF_B += 3;
-      else {
-        ptsGF_A += 1;
-        ptsGF_B += 1;
-      }
-    }
-  });
-
-  const isGFComplete = gfMatchesPlayed === 5;
-  let championsBannerHtml = '';
-
-  if (isGFComplete) {
-    let championName = '';
-    let championPlayers = '';
-    let isTied = false;
-
-    if (ptsGF_A > ptsGF_B) {
-      championName = teamGF_A.name;
-      championPlayers = `${teamGF_A.player1.name} (${teamGF_A.player1.country}) & ${teamGF_A.player2.name} (${teamGF_A.player2.country})`;
-    } else if (ptsGF_B > ptsGF_A) {
-      championName = teamGF_B.name;
-      championPlayers = `${teamGF_B.player1.name} (${teamGF_B.player1.country}) & ${teamGF_B.player2.name} (${teamGF_B.player2.country})`;
-    } else {
-      // Tie breakers for GF: GF Goal Difference, then GF Goals For
-      const gdA = gfGF_A - gfGF_B;
-      const gdB = gfGF_B - gfGF_A;
-      if (gdA > gdB) {
-        championName = teamGF_A.name;
-        championPlayers = `${teamGF_A.player1.name} (${teamGF_A.player1.country}) & ${teamGF_A.player2.name} (${teamGF_A.player2.country})`;
-      } else if (gdB > gdA) {
-        championName = teamGF_B.name;
-        championPlayers = `${teamGF_B.player1.name} (${teamGF_B.player1.country}) & ${teamGF_B.player2.name} (${teamGF_B.player2.country})`;
-      } else {
-        if (gfGF_A > gfGF_B) {
-          championName = teamGF_A.name;
-          championPlayers = `${teamGF_A.player1.name} (${teamGF_A.player1.country}) & ${teamGF_A.player2.name} (${teamGF_A.player2.country})`;
-        } else if (gfGF_B > gfGF_A) {
-          championName = teamGF_B.name;
-          championPlayers = `${teamGF_B.player1.name} (${teamGF_B.player1.country}) & ${teamGF_B.player2.name} (${teamGF_B.player2.country})`;
-        } else {
-          // Absolute tiebreaker: Higher seed in RR standings
-          const standings = calculateStandings();
-          const indexA = standings.findIndex(t => t.id === teamGF_A.id);
-          const indexB = standings.findIndex(t => t.id === teamGF_B.id);
-          if (indexA < indexB) {
-            championName = teamGF_A.name;
-            championPlayers = `${teamGF_A.player1.name} (${teamGF_A.player1.country}) & ${teamGF_A.player2.name} (${teamGF_A.player2.country})`;
-          } else {
-            championName = teamGF_B.name;
-            championPlayers = `${teamGF_B.player1.name} (${teamGF_B.player1.country}) & ${teamGF_B.player2.name} (${teamGF_B.player2.country})`;
-          }
-        }
-      }
-    }
-
-    championsBannerHtml = `
-      <div class="champions-banner">
-        <h3>🏆 ¡CAMPEONES DE LA WORLD CUP! 🏆</h3>
-        <h2 style="color: var(--text-primary); font-size: 1.8rem; font-weight: 800; margin: 10px 0;">${championName}</h2>
-        <p>${championPlayers}</p>
-      </div>
-    `;
-  }
-
-  html += `
-      <div class="gf-card">
-        <div class="gf-trophy-overlay">🏆</div>
-        <h2 class="gf-header-title">🔥 LA GRAN FINAL 🔥</h2>
-        
-        <div class="gf-teams-vs">
-          <div class="gf-team-panel ${isGFComplete && ptsGF_A >= ptsGF_B ? 'winner' : ''}">
-            <div style="font-size: 0.7rem; color: var(--accent-cyan); font-weight: 700; text-transform: uppercase;">Ganador SF 1</div>
-            <div class="gf-team-pname">${teamGF_A.name}</div>
-            <div class="gf-team-psub">${teamGF_A.player1.name} (${teamGF_A.player1.country})</div>
-            <div class="gf-team-psub">${teamGF_A.player2.name} (${teamGF_A.player2.country})</div>
-            <div style="font-size: 1.25rem; font-weight: 800; color: var(--accent-gold); margin-top: 8px;">${ptsGF_A} pts</div>
-          </div>
-          
-          <div style="font-size: 1.2rem; font-weight: 800; color: var(--text-secondary);">VS</div>
-          
-          <div class="gf-team-panel ${isGFComplete && ptsGF_B >= ptsGF_A ? 'winner' : ''}">
-            <div style="font-size: 0.7rem; color: #c084fc; font-weight: 700; text-transform: uppercase;">Ganador SF 2</div>
-            <div class="gf-team-pname">${teamGF_B.name}</div>
-            <div class="gf-team-psub">${teamGF_B.player1.name} (${teamGF_B.player1.country})</div>
-            <div class="gf-team-psub">${teamGF_B.player2.name} (${teamGF_B.player2.country})</div>
-            <div style="font-size: 1.25rem; font-weight: 800; color: var(--accent-gold); margin-top: 8px;">${ptsGF_B} pts</div>
-          </div>
-        </div>
-
-        <div class="gf-match-list">
-          <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 12px; font-weight: 700; text-transform: uppercase; text-align: center;">
-            Juegos de la Serie Final (Win = 3pts, Draw = 1pt, Loss = 0pts)
-          </p>
-          ${renderMatchList(state.grandFinal.matches, 'finde', 'grand-final')}
-        </div>
-
-        ${championsBannerHtml}
-      </div>
-    </div>
-  `;
-
-  container.innerHTML = html;
-}
-
-// ADMIN AUTHENTICATION FUNCTIONS
-function getIsAdmin() {
-  return sessionStorage.getItem('finanzas_is_admin') === 'true' || sessionStorage.getItem('efootball_is_admin') === 'true';
-}
-
-function openAdminModal() {
-  document.getElementById('admin-modal').style.display = 'flex';
-  document.getElementById('admin-passcode').focus();
-  document.getElementById('login-error-msg').style.display = 'none';
-}
-
-function closeAdminModal() {
-  document.getElementById('admin-modal').style.display = 'none';
-  document.getElementById('admin-passcode').value = '';
-}
-
-function loginAdmin() {
-  const passField = document.getElementById('admin-passcode');
-  const errorMsg = document.getElementById('login-error-msg');
-  if (passField.value === 'admin777') {
-    sessionStorage.setItem('finanzas_is_admin', 'true');
-    closeAdminModal();
-    updateUI();
-  } else {
-    errorMsg.style.display = 'block';
-    passField.value = '';
-    passField.focus();
-  }
-}
-
-function logoutAdmin() {
-  sessionStorage.removeItem('finanzas_is_admin');
-  sessionStorage.removeItem('efootball_is_admin');
-  updateUI();
-}
-
-// SAVE TOURNAMENT STATE TO CLOUDFLARE KV
-async function saveStateToCloud() {
-  if (!getIsAdmin()) return;
-  
-  // Save locally first
-  saveState();
-  
-  const stateStr = JSON.stringify(state);
-  
   try {
     const res = await fetch('./api/state', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'admin777' // Backend API admin validation
+        'Authorization': passcode
       },
-      body: stateStr
+      body: JSON.stringify(state)
     });
+
     if (res.ok) {
-      alert("¡Resultados y datos del torneo guardados con éxito en la nube!");
+      if (syncBadge && syncText) {
+        syncBadge.className = 'status-badge sync-ok';
+        syncText.textContent = 'Nube Sincronizada';
+      }
     } else {
-      alert("Fallo al guardar en la nube: " + res.statusText);
+      throw new Error('Error al sincronizar');
     }
-  } catch (err) {
-    console.error("Cloud Sync Error", err);
-    alert("Error de red al conectar con la base de datos de Cloudflare: " + err.message);
+  } catch (e) {
+    if (syncBadge && syncText) {
+      syncBadge.className = 'status-badge';
+      syncText.textContent = 'Guardado Local';
+    }
   }
 }
 
-function renderHeaderActions() {
-  const container = document.getElementById('header-actions');
+// Currency Formatter
+function formatMoney(amount) {
+  const curr = (state.config && state.config.currency) ? state.config.currency : 'S/.';
+  const num = Number(amount) || 0;
+  return `${curr} ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// Smart Allocation Calculator Engine
+function runAllocationCalculator() {
+  const inp = document.getElementById('calc-input-amount');
+  const amount = parseFloat(inp ? inp.value : 0) || 0;
+
+  const tithePct = (state.config ? state.config.tithePct : 10) / 100;
+  const savingsPct = (state.config ? state.config.savingsPct : 20) / 100;
+
+  const titheVal = amount * tithePct;
+  const savingsVal = amount * savingsPct;
+  
+  // Calculate recommended daily fixed bills quota
+  const fixedDailyReq = calculateDailyFixedQuota();
+  const fixedSuggested = Math.min(amount * 0.30, fixedDailyReq);
+  const freeVal = Math.max(0, amount - titheVal - savingsVal - (amount > 0 ? fixedSuggested : 0));
+
+  const titheEl = document.getElementById('calc-tithe-val');
+  const savEl = document.getElementById('calc-savings-val');
+  const fixedEl = document.getElementById('calc-fixed-val');
+  const freeEl = document.getElementById('calc-free-val');
+
+  if (titheEl) titheEl.textContent = formatMoney(titheVal);
+  if (savEl) savEl.textContent = formatMoney(savingsVal);
+  if (fixedEl) fixedEl.textContent = formatMoney(fixedSuggested);
+  if (freeEl) freeEl.textContent = formatMoney(freeVal);
+}
+
+function applyQuickAllocationFromCalc() {
+  const inp = document.getElementById('calc-input-amount');
+  const amount = parseFloat(inp ? inp.value : 0) || 0;
+  if (amount <= 0) {
+    alert('Ingresa un monto válido mayor a 0 para registrar el ingreso.');
+    return;
+  }
+
+  // Pre-fill modal
+  openModal('modal-ingreso');
+  const modalMonto = document.getElementById('inp-ingreso-monto');
+  if (modalMonto) {
+    modalMonto.value = amount;
+    updateModalIngresoReparto();
+  }
+}
+
+function updateModalIngresoReparto() {
+  const inp = document.getElementById('inp-ingreso-monto');
+  const amount = parseFloat(inp ? inp.value : 0) || 0;
+
+  const tithePct = (state.config ? state.config.tithePct : 10) / 100;
+  const savingsPct = (state.config ? state.config.savingsPct : 20) / 100;
+
+  const titheVal = amount * tithePct;
+  const savingsVal = amount * savingsPct;
+  const freeVal = Math.max(0, amount - titheVal - savingsVal);
+
+  const mDiezmo = document.getElementById('modal-ingreso-diezmo');
+  const mAhorro = document.getElementById('modal-ingreso-ahorro');
+  const mLibre = document.getElementById('modal-ingreso-libre');
+
+  if (mDiezmo) mDiezmo.textContent = formatMoney(titheVal);
+  if (mAhorro) mAhorro.textContent = formatMoney(savingsVal);
+  if (mLibre) mLibre.textContent = formatMoney(freeVal);
+}
+
+// Calculate remaining working days in current month (Domingo a Viernes, excluding Saturdays)
+function getRemainingWorkDays() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const today = now.getDate();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+
+  let workdays = 0;
+  for (let day = today; day <= lastDay; day++) {
+    const d = new Date(year, month, day);
+    // 6 is Saturday (Sabbath / descanso)
+    if (d.getDay() !== 6) {
+      workdays++;
+    }
+  }
+  return Math.max(1, workdays);
+}
+
+// Calculate pending fixed obligations and daily quota
+function calculateDailyFixedQuota() {
+  const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
+  const pendingTotal = state.fixedPayments.reduce((acc, bill) => {
+    const isPaid = bill.isPaidThisMonth && bill.lastPaidMonth === currentMonth;
+    return isPaid ? acc : acc + Number(bill.amount);
+  }, 0);
+
+  const workdaysRemaining = getRemainingWorkDays();
+  return pendingTotal / workdaysRemaining;
+}
+
+// UI RENDERING ENGINE
+function updateUI() {
+  renderDashboardBalances();
+  renderAccountsList();
+  renderRecentTransactions();
+  renderTransactionsList();
+  renderFixedPayments();
+  renderAhorrosYDiezmos();
+  renderAdvisorInsight();
+  renderWeeklyChart();
+  renderCategoryBreakdown();
+}
+
+function renderDashboardBalances() {
+  const cash = Number(state.accounts.cash) || 0;
+  const bank = Number(state.accounts.bank) || 0;
+  const savings = Number(state.funds.savings) || 0;
+  const tithe = Number(state.funds.tithe) || 0;
+  const total = cash + bank + savings; // Net financial worth
+
+  const currentMonth = new Date().toISOString().substring(0, 7);
+  
+  // Calculate month income & expenses
+  let monthIncome = 0;
+  let monthExpenses = 0;
+
+  state.transactions.forEach(tx => {
+    if (tx.date && tx.date.startsWith(currentMonth)) {
+      if (tx.type === 'income') monthIncome += Number(tx.amount);
+      if (tx.type === 'expense') monthExpenses += Number(tx.amount);
+    }
+  });
+
+  // Calculate pending fixed bills
+  const pendingFixed = state.fixedPayments.reduce((acc, bill) => {
+    const isPaid = bill.isPaidThisMonth && bill.lastPaidMonth === currentMonth;
+    return isPaid ? acc : acc + Number(bill.amount);
+  }, 0);
+
+  const dailyQuota = calculateDailyFixedQuota();
+
+  // Set DOM Values
+  document.getElementById('dash-total-balance').textContent = formatMoney(total);
+  document.getElementById('dash-cash-balance').textContent = formatMoney(cash);
+  document.getElementById('dash-bank-balance').textContent = formatMoney(bank);
+  document.getElementById('dash-savings-balance').textContent = formatMoney(savings);
+  document.getElementById('dash-tithe-balance').textContent = formatMoney(tithe);
+
+  document.getElementById('dash-month-income').textContent = formatMoney(monthIncome);
+  document.getElementById('dash-month-expenses').textContent = formatMoney(monthExpenses);
+  document.getElementById('dash-fixed-pending').textContent = formatMoney(pendingFixed);
+  document.getElementById('dash-savings-total').textContent = formatMoney(savings);
+
+  const workdaysRemaining = getRemainingWorkDays();
+  const workdaysTotal = state.config.workDaysPerMonth || 26;
+  const daysPassed = Math.max(0, workdaysTotal - workdaysRemaining);
+  
+  document.getElementById('dash-income-days').textContent = `${daysPassed} de ${workdaysTotal} días trabajados`;
+  document.getElementById('dash-fixed-quota').textContent = `Meta: ${formatMoney(dailyQuota)} / día laborable`;
+  
+  const avgExpense = daysPassed > 0 ? (monthExpenses / daysPassed) : monthExpenses;
+  document.getElementById('dash-expense-rate').textContent = `Promedio: ${formatMoney(avgExpense)} / día`;
+}
+
+// Virtual Financial Advisor Algorithm
+function renderAdvisorInsight() {
+  const currentMonth = new Date().toISOString().substring(0, 7);
+  let monthIncome = 0;
+  let monthExpenses = 0;
+
+  state.transactions.forEach(tx => {
+    if (tx.date && tx.date.startsWith(currentMonth)) {
+      if (tx.type === 'income') monthIncome += Number(tx.amount);
+      if (tx.type === 'expense') monthExpenses += Number(tx.amount);
+    }
+  });
+
+  const savings = Number(state.funds.savings) || 0;
+  const tithe = Number(state.funds.tithe) || 0;
+  const pendingFixed = state.fixedPayments.reduce((acc, bill) => {
+    const isPaid = bill.isPaidThisMonth && bill.lastPaidMonth === currentMonth;
+    return isPaid ? acc : acc + Number(bill.amount);
+  }, 0);
+
+  const totalFixedMonthly = state.fixedPayments.reduce((acc, b) => acc + Number(b.amount), 0);
+  const advisorText = document.getElementById('advisor-text');
+  if (!advisorText) return;
+
+  if (monthIncome === 0) {
+    advisorText.innerHTML = `¡Bienvenido! Inicia el mes registrando tus ingresos diarios. Al ingresar cada monto, el sistema apartará automáticamente tu <strong>10% de Diezmo</strong> y <strong>20% de Ahorro</strong>.`;
+  } else if (pendingFixed > 0 && (state.accounts.cash + state.accounts.bank) < pendingFixed) {
+    const dailyQuota = calculateDailyFixedQuota();
+    advisorText.innerHTML = `⚠️ <strong>Atención a tus Pagos Fijos:</strong> Tienes ${formatMoney(pendingFixed)} en cuentas por pagar este mes. Procura reservar <strong>${formatMoney(dailyQuota)}</strong> por cada día laboral (Dom-Vie) para cubrirlas sin contratiempos.`;
+  } else if (tithe > 0) {
+    advisorText.innerHTML = `🕊️ Tienes <strong>${formatMoney(tithe)}</strong> de diezmo acumulado listo para entregar en tu congregación. Tu fondo de ahorro actual es de <strong>${formatMoney(savings)}</strong>. ¡Excelente orden!`;
+  } else if (monthExpenses > (monthIncome * 0.70)) {
+    advisorText.innerHTML = `💡 <strong>Consejo de Ahorro:</strong> Tus gastos del mes representan más del 70% de lo ingresado. Revisa la sección de Reportes para identificar y recortar posibles gastos hormiga.`;
+  } else if (savings >= totalFixedMonthly * 3 && totalFixedMonthly > 0) {
+    advisorText.innerHTML = `🌟 <strong>¡Salud Financiera Excelente!</strong> Tu fondo de ahorro supera los 3 meses de gastos fijos. Tienes un sólido colchón de tranquilidad para tu trabajo independiente.`;
+  } else {
+    advisorText.innerHTML = `✅ <strong>Buen balance:</strong> Llevas ${formatMoney(monthIncome)} generados este mes. Mantén el ritmo de Domingo a Viernes y respeta tu descanso del Sábado.`;
+  }
+}
+
+// Render Accounts
+function renderAccountsList() {
+  const container = document.getElementById('accounts-list-container');
   if (!container) return;
 
-  const isAdmin = getIsAdmin();
-  if (isAdmin) {
-    container.innerHTML = `
-      <button class="reset-btn" onclick="saveStateToCloud()" style="background: rgba(0, 255, 135, 0.1); color: var(--accent-green); border-color: rgba(0, 255, 135, 0.2);">
-        <i class="icon-check"></i> Guardar Cambios
-      </button>
-      <button class="reset-btn" onclick="resetTournament()" style="background: rgba(244, 63, 94, 0.1); color: var(--accent-danger); border-color: rgba(244, 63, 94, 0.2);">
-        <i class="icon-settings"></i> Reiniciar
-      </button>
-      <button class="reset-btn" onclick="logoutAdmin()" style="background: rgba(255, 255, 255, 0.05); color: var(--text-primary); border-color: var(--border-color);">
-        Salir Admin
-      </button>
-    `;
-  } else {
-    container.innerHTML = `
-      <button class="reset-btn" onclick="openAdminModal()" style="background: rgba(0, 210, 255, 0.1); color: var(--accent-cyan); border-color: rgba(0, 210, 255, 0.2);">
-        Acceso Admin
-      </button>
-    `;
+  const cash = Number(state.accounts.cash) || 0;
+  const bank = Number(state.accounts.bank) || 0;
+  const savings = Number(state.funds.savings) || 0;
+
+  container.innerHTML = `
+    <div class="tx-item">
+      <div class="tx-left">
+        <div class="tx-icon income">💵</div>
+        <div class="tx-details">
+          <h5>Efectivo en Mano</h5>
+          <div class="tx-meta">Billetera física / Caja chica</div>
+        </div>
+      </div>
+      <div class="tx-right">
+        <div class="tx-amount pos">${formatMoney(cash)}</div>
+      </div>
+    </div>
+
+    <div class="tx-item">
+      <div class="tx-left">
+        <div class="tx-icon savings">📱</div>
+        <div class="tx-details">
+          <h5>Banco / Yape / Plin</h5>
+          <div class="tx-meta">Cuentas digitales bancarias</div>
+        </div>
+      </div>
+      <div class="tx-right">
+        <div class="tx-amount pos">${formatMoney(bank)}</div>
+      </div>
+    </div>
+
+    <div class="tx-item">
+      <div class="tx-left">
+        <div class="tx-icon tithe">🛡️</div>
+        <div class="tx-details">
+          <h5>Bóveda de Ahorro (20%)</h5>
+          <div class="tx-meta">Fondo protegido e intocable</div>
+        </div>
+      </div>
+      <div class="tx-right">
+        <div class="tx-amount" style="color: var(--blue-light);">${formatMoney(savings)}</div>
+      </div>
+    </div>
+  `;
+}
+
+// Render Recent Transactions
+function renderRecentTransactions() {
+  const container = document.getElementById('dash-recent-txs');
+  if (!container) return;
+
+  const recent = (state.transactions || []).slice(0, 5);
+  if (recent.length === 0) {
+    container.innerHTML = `<p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 20px;">Aún no tienes movimientos registrados. Pulsa <strong>+ Ingreso</strong> o <strong>- Gasto</strong> para empezar.</p>`;
+    return;
   }
+
+  container.innerHTML = recent.map(tx => buildTxItemHTML(tx)).join('');
+}
+
+// Render Full Transaction List with Filter
+function renderTransactionsList() {
+  const container = document.getElementById('all-transactions-list');
+  const filterSelect = document.getElementById('tx-filter-type');
+  if (!container) return;
+
+  const filter = filterSelect ? filterSelect.value : 'all';
+  let list = state.transactions || [];
+
+  if (filter !== 'all') {
+    list = list.filter(t => t.type === filter);
+  }
+
+  if (list.length === 0) {
+    container.innerHTML = `<p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 30px;">No hay movimientos para este filtro.</p>`;
+    return;
+  }
+
+  container.innerHTML = list.map(tx => buildTxItemHTML(tx, true)).join('');
+}
+
+function buildTxItemHTML(tx, showDelete = false) {
+  let iconClass = 'income';
+  let iconEmoji = '💰';
+  let sign = '+';
+  let amountClass = 'pos';
+  let accountLabel = tx.accountId === 'cash' ? 'Efectivo' : 'Banco / Yape';
+
+  if (tx.type === 'expense') {
+    iconClass = 'expense';
+    iconEmoji = '🛒';
+    sign = '-';
+    amountClass = 'neg';
+  } else if (tx.type === 'tithe_delivery') {
+    iconClass = 'tithe';
+    iconEmoji = '🕊️';
+    sign = '✓';
+    amountClass = 'neutral';
+    accountLabel = 'Entrega Diezmo';
+  } else if (tx.type === 'transfer') {
+    iconClass = 'transfer';
+    iconEmoji = '⇄';
+    sign = '⇄';
+    amountClass = 'neutral';
+    accountLabel = 'Transferencia';
+  }
+
+  const deleteBtn = showDelete ? `
+    <button class="tx-delete-btn" onclick="deleteTransaction('${tx.id}')" title="Eliminar movimiento">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+    </button>
+  ` : '';
+
+  return `
+    <div class="tx-item">
+      <div class="tx-left">
+        <div class="tx-icon ${iconClass}">${iconEmoji}</div>
+        <div class="tx-details">
+          <h5>${escapeHTML(tx.description || tx.category || 'Movimiento')}</h5>
+          <div class="tx-meta">
+            <span>📅 ${tx.date || 'Hoy'}</span>
+            <span>•</span>
+            <span>${accountLabel}</span>
+            ${tx.category ? `<span>• <strong style="color: var(--text-secondary);">${escapeHTML(tx.category)}</strong></span>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="tx-right" style="display: flex; align-items: center; gap: 8px;">
+        <div class="tx-amount ${amountClass}">${sign} ${formatMoney(tx.amount)}</div>
+        ${deleteBtn}
+      </div>
+    </div>
+  `;
+}
+
+// Fixed Payments Management
+function renderFixedPayments() {
+  const container = document.getElementById('fixed-bills-container');
+  if (!container) return;
+
+  const currentMonth = new Date().toISOString().substring(0, 7);
+  let totalMonthly = 0;
+  let totalPaid = 0;
+  let paidCount = 0;
+
+  const bills = state.fixedPayments || [];
+  bills.forEach(b => {
+    const amt = Number(b.amount) || 0;
+    totalMonthly += amt;
+    const isPaid = b.isPaidThisMonth && b.lastPaidMonth === currentMonth;
+    if (isPaid) {
+      totalPaid += amt;
+      paidCount++;
+    }
+  });
+
+  const totalMonthlyEl = document.getElementById('fixed-total-monthly');
+  const totalPaidEl = document.getElementById('fixed-total-paid');
+  const paidCountEl = document.getElementById('fixed-paid-count');
+  const dailyQuotaEl = document.getElementById('fixed-daily-quota');
+
+  if (totalMonthlyEl) totalMonthlyEl.textContent = formatMoney(totalMonthly);
+  if (totalPaidEl) totalPaidEl.textContent = formatMoney(totalPaid);
+  if (paidCountEl) paidCountEl.textContent = `${paidCount} de ${bills.length} cuentas pagadas`;
+  if (dailyQuotaEl) dailyQuotaEl.textContent = formatMoney(calculateDailyFixedQuota());
+
+  if (bills.length === 0) {
+    container.innerHTML = `<p style="font-size: 0.85rem; color: var(--text-muted); padding: 20px;">No has añadido pagos fijos todavía. Pulsa <strong>+ Nuevo Pago Fijo</strong>.</p>`;
+    return;
+  }
+
+  container.innerHTML = bills.map(bill => {
+    const isPaid = bill.isPaidThisMonth && bill.lastPaidMonth === currentMonth;
+    const todayDate = new Date().getDate();
+    const isUrgent = !isPaid && (bill.dueDay - todayDate <= 3) && (bill.dueDay >= todayDate);
+    const isOverdue = !isPaid && (todayDate > bill.dueDay);
+
+    let statusBadge = isPaid 
+      ? `<span class="alloc-badge badge-emerald">✓ Pagado</span>`
+      : (isOverdue 
+          ? `<span class="alloc-badge badge-rose">⚠️ Vencido (Día ${bill.dueDay})</span>`
+          : (isUrgent 
+              ? `<span class="alloc-badge badge-rose">⚡ Por Vencer (Día ${bill.dueDay})</span>`
+              : `<span class="alloc-badge badge-blue">Vence el ${bill.dueDay}</span>`));
+
+    return `
+      <div class="bill-card ${isPaid ? 'paid' : (isUrgent || isOverdue ? 'urgent' : 'pending')}">
+        <div class="bill-header">
+          <div>
+            <div class="bill-name">${escapeHTML(bill.name)}</div>
+            <div class="bill-due">${escapeHTML(bill.category || 'Fijo')} • Vence día ${bill.dueDay} de cada mes</div>
+          </div>
+          ${statusBadge}
+        </div>
+
+        <div class="bill-amount" style="color: ${isPaid ? 'var(--emerald-light)' : 'var(--text-main)'};">
+          ${formatMoney(bill.amount)}
+        </div>
+
+        <div class="bill-actions">
+          <button class="btn ${isPaid ? 'btn-ghost' : 'btn-primary'}" style="padding: 6px 12px; font-size: 0.8rem;" onclick="toggleFixedBillPaid('${bill.id}')">
+            ${isPaid ? '↩ Desmarcar' : '✓ Marcar como Pagado'}
+          </button>
+          <button class="tx-delete-btn" onclick="deleteFixedBill('${bill.id}')" title="Eliminar cuenta fija">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleFixedBillPaid(billId) {
+  const currentMonth = new Date().toISOString().substring(0, 7);
+  const bill = state.fixedPayments.find(b => b.id === billId);
+  if (!bill) return;
+
+  const wasPaid = bill.isPaidThisMonth && bill.lastPaidMonth === currentMonth;
+  bill.isPaidThisMonth = !wasPaid;
+  bill.lastPaidMonth = !wasPaid ? currentMonth : '';
+
+  persistState();
+  updateUI();
+}
+
+function deleteFixedBill(billId) {
+  if (!confirm('¿Deseas eliminar este compromiso de pago fijo?')) return;
+  state.fixedPayments = state.fixedPayments.filter(b => b.id !== billId);
+  persistState();
+  updateUI();
+}
+
+// Ahorros y Diezmos Management
+function renderAhorrosYDiezmos() {
+  const titheAmount = Number(state.funds.tithe) || 0;
+  const savingsAmount = Number(state.funds.savings) || 0;
+  const totalMonthlyBills = state.fixedPayments.reduce((acc, b) => acc + Number(b.amount), 0);
+
+  const titheBox = document.getElementById('tithe-box-amount');
+  const savingsBox = document.getElementById('savings-box-amount');
+  const savingsMonths = document.getElementById('savings-months-cushion');
+
+  if (titheBox) titheBox.textContent = formatMoney(titheAmount);
+  if (savingsBox) savingsBox.textContent = formatMoney(savingsAmount);
+
+  if (savingsMonths) {
+    if (totalMonthlyBills > 0) {
+      const months = (savingsAmount / totalMonthlyBills).toFixed(1);
+      savingsMonths.textContent = `Equivalente a ${months} meses de tus pagos fijos cubiertos.`;
+    } else {
+      savingsMonths.textContent = `Fondo de reserva disponible para imprevistos e inversión.`;
+    }
+  }
+
+  // Render Tithe Deliveries
+  const titheContainer = document.getElementById('tithe-history-list');
+  if (titheContainer) {
+    const list = state.titheDeliveries || [];
+    if (list.length === 0) {
+      titheContainer.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); padding: 10px;">Aún no has registrado entregas de diezmo.</p>`;
+    } else {
+      titheContainer.innerHTML = list.slice(0, 5).map(item => `
+        <div class="tx-item">
+          <div class="tx-left">
+            <div class="tx-icon tithe">🕊️</div>
+            <div class="tx-details">
+              <h5>${escapeHTML(item.church || 'Iglesia')}</h5>
+              <div class="tx-meta">
+                <span>📅 ${item.date}</span>
+                ${item.note ? `<span>• ${escapeHTML(item.note)}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="tx-right">
+            <div class="tx-amount neutral">${formatMoney(item.amount)}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Render Savings Goals
+  const goalsContainer = document.getElementById('savings-goals-list');
+  if (goalsContainer) {
+    const goals = state.savingsGoals || [];
+    if (goals.length === 0) {
+      goalsContainer.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted); padding: 10px;">No has creado metas de ahorro aún.</p>`;
+    } else {
+      goalsContainer.innerHTML = goals.map(goal => {
+        const target = Number(goal.targetAmount) || 1;
+        const current = Math.min(target, savingsAmount);
+        const pct = Math.min(100, Math.round((current / target) * 100));
+
+        return `
+          <div class="tx-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h5 style="font-size: 0.95rem;">${escapeHTML(goal.name)}</h5>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">${formatMoney(current)} de ${formatMoney(target)}</span>
+              </div>
+              <span class="alloc-badge badge-blue">${pct}%</span>
+            </div>
+            <div class="progress-bar-container">
+              <div class="progress-fill fill-blue" style="width: ${pct}%;"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+}
+
+// Visual Reports: Weekly Rhythm Chart & Category Breakdown
+function renderWeeklyChart() {
+  const container = document.getElementById('weekly-chart-bars');
+  if (!container) return;
+
+  const daysNames = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+  const now = new Date();
+  
+  // Calculate current week Sunday to Saturday
+  const currentDayIndex = now.getDay(); // 0 is Sunday
+  const sundayDate = new Date(now);
+  sundayDate.setDate(now.getDate() - currentDayIndex);
+
+  const weekIncomes = [0, 0, 0, 0, 0, 0, 0];
+
+  state.transactions.forEach(tx => {
+    if (tx.type === 'income' && tx.date) {
+      const txDate = new Date(tx.date + 'T00:00:00');
+      const diffTime = txDate - sundayDate;
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays >= 0 && diffDays < 7) {
+        weekIncomes[diffDays] += Number(tx.amount);
+      }
+    }
+  });
+
+  const maxIncome = Math.max(...weekIncomes, 100);
+
+  container.innerHTML = weekIncomes.map((inc, i) => {
+    const isSabbath = i === 6; // Saturday
+    const heightPct = Math.round((inc / maxIncome) * 100);
+
+    return `
+      <div class="bar-col ${isSabbath ? 'sabbath' : ''}">
+        <div style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-muted);">${inc > 0 ? formatMoney(inc).replace(/S\/\.\s?/, '') : ''}</div>
+        <div class="bar-track" title="${daysNames[i]}: ${isSabbath ? 'Descanso / Shabat' : formatMoney(inc)}">
+          <div class="bar-fill-income" style="height: ${heightPct}%;"></div>
+        </div>
+        <div class="bar-label">${daysNames[i]}${isSabbath ? '<br><span style="font-size:0.6rem; color:var(--blue-light);">⛪</span>' : ''}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderCategoryBreakdown() {
+  const container = document.getElementById('category-breakdown-list');
+  if (!container) return;
+
+  const currentMonth = new Date().toISOString().substring(0, 7);
+  const categories = {};
+  let totalExpense = 0;
+
+  state.transactions.forEach(tx => {
+    if (tx.type === 'expense' && tx.date && tx.date.startsWith(currentMonth)) {
+      const cat = tx.category || 'Otros';
+      const amt = Number(tx.amount) || 0;
+      categories[cat] = (categories[cat] || 0) + amt;
+      totalExpense += amt;
+    }
+  });
+
+  const sortedCats = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+
+  if (sortedCats.length === 0) {
+    container.innerHTML = `<p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 20px;">No hay gastos registrados en el mes actual.</p>`;
+    return;
+  }
+
+  container.innerHTML = sortedCats.map(([catName, amt]) => {
+    const pct = totalExpense > 0 ? Math.round((amt / totalExpense) * 100) : 0;
+    return `
+      <div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
+          <span>${escapeHTML(catName)}</span>
+          <span style="font-family: var(--font-mono); font-weight: 700;">${formatMoney(amt)} (${pct}%)</span>
+        </div>
+        <div class="progress-bar-container">
+          <div class="progress-fill fill-rose" style="width: ${pct}%;"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// FORM SUBMISSIONS & ACTIONS
+
+// 1. Submit Nuevo Ingreso
+function submitNuevoIngreso() {
+  const montoInput = document.getElementById('inp-ingreso-monto');
+  const cuentaSelect = document.getElementById('inp-ingreso-cuenta');
+  const descInput = document.getElementById('inp-ingreso-desc');
+  const fechaInput = document.getElementById('inp-ingreso-fecha');
+  const autoAllocateCheck = document.getElementById('inp-ingreso-auto-allocate');
+
+  const amount = parseFloat(montoInput ? montoInput.value : 0);
+  if (!amount || amount <= 0) {
+    alert('Por favor ingresa un monto válido.');
+    return;
+  }
+
+  const account = cuentaSelect ? cuentaSelect.value : 'cash';
+  const desc = (descInput && descInput.value.trim()) ? descInput.value.trim() : 'Ingreso por trabajo';
+  const date = (fechaInput && fechaInput.value) ? fechaInput.value : new Date().toISOString().split('T')[0];
+  const autoAllocate = autoAllocateCheck ? autoAllocateCheck.checked : true;
+
+  const tithePct = (state.config ? state.config.tithePct : 10) / 100;
+  const savingsPct = (state.config ? state.config.savingsPct : 20) / 100;
+
+  const titheVal = autoAllocate ? (amount * tithePct) : 0;
+  const savingsVal = autoAllocate ? (amount * savingsPct) : 0;
+  const freeCash = amount - titheVal - savingsVal;
+
+  // Add into selected account
+  state.accounts[account] = (Number(state.accounts[account]) || 0) + (autoAllocate ? freeCash : amount);
+
+  // Add into funds
+  if (autoAllocate) {
+    state.funds.tithe = (Number(state.funds.tithe) || 0) + titheVal;
+    state.funds.savings = (Number(state.funds.savings) || 0) + savingsVal;
+  }
+
+  // Register Transaction
+  const newTx = {
+    id: 'tx_' + Date.now(),
+    type: 'income',
+    amount: amount,
+    accountId: account,
+    category: 'Ingresos',
+    description: desc,
+    date: date,
+    allocations: {
+      tithe: titheVal,
+      savings: savingsVal,
+      free: freeCash
+    },
+    createdAt: Date.now()
+  };
+
+  state.transactions.unshift(newTx);
+
+  // Reset form & close
+  montoInput.value = '';
+  if (descInput) descInput.value = '';
+  closeModal('modal-ingreso');
+
+  persistState();
+  updateUI();
+}
+
+// 2. Submit Nuevo Gasto
+function submitNuevoGasto() {
+  const montoInput = document.getElementById('inp-gasto-monto');
+  const cuentaSelect = document.getElementById('inp-gasto-cuenta');
+  const catSelect = document.getElementById('inp-gasto-cat');
+  const descInput = document.getElementById('inp-gasto-desc');
+  const fechaInput = document.getElementById('inp-gasto-fecha');
+
+  const amount = parseFloat(montoInput ? montoInput.value : 0);
+  if (!amount || amount <= 0) {
+    alert('Por favor ingresa un monto válido.');
+    return;
+  }
+
+  const account = cuentaSelect ? cuentaSelect.value : 'cash';
+  const cat = catSelect ? catSelect.value : 'Alimentación';
+  const desc = (descInput && descInput.value.trim()) ? descInput.value.trim() : cat;
+  const date = (fechaInput && fechaInput.value) ? fechaInput.value : new Date().toISOString().split('T')[0];
+
+  // Deduct from account
+  state.accounts[account] = (Number(state.accounts[account]) || 0) - amount;
+
+  const newTx = {
+    id: 'tx_' + Date.now(),
+    type: 'expense',
+    amount: amount,
+    accountId: account,
+    category: cat,
+    description: desc,
+    date: date,
+    createdAt: Date.now()
+  };
+
+  state.transactions.unshift(newTx);
+
+  montoInput.value = '';
+  if (descInput) descInput.value = '';
+  closeModal('modal-gasto');
+
+  persistState();
+  updateUI();
+}
+
+// 3. Submit Transferencia entre Cuentas
+function submitTransferencia() {
+  const montoInput = document.getElementById('inp-transfer-monto');
+  const origenSelect = document.getElementById('inp-transfer-origen');
+  const destinoSelect = document.getElementById('inp-transfer-destino');
+  const descInput = document.getElementById('inp-transfer-desc');
+
+  const amount = parseFloat(montoInput ? montoInput.value : 0);
+  if (!amount || amount <= 0) {
+    alert('Ingresa un monto válido para transferir.');
+    return;
+  }
+
+  const fromAcc = origenSelect.value;
+  const toAcc = destinoSelect.value;
+
+  if (fromAcc === toAcc) {
+    alert('La cuenta de origen y destino no pueden ser la misma.');
+    return;
+  }
+
+  // Process balance transfer
+  if (fromAcc === 'savings') {
+    state.funds.savings = (Number(state.funds.savings) || 0) - amount;
+  } else {
+    state.accounts[fromAcc] = (Number(state.accounts[fromAcc]) || 0) - amount;
+  }
+
+  if (toAcc === 'savings') {
+    state.funds.savings = (Number(state.funds.savings) || 0) + amount;
+  } else {
+    state.accounts[toAcc] = (Number(state.accounts[toAcc]) || 0) + amount;
+  }
+
+  const desc = (descInput && descInput.value.trim()) ? descInput.value.trim() : `Transferencia de ${fromAcc} a ${toAcc}`;
+
+  state.transactions.unshift({
+    id: 'tx_' + Date.now(),
+    type: 'transfer',
+    amount: amount,
+    accountId: fromAcc,
+    toAccountId: toAcc,
+    category: 'Transferencia',
+    description: desc,
+    date: new Date().toISOString().split('T')[0],
+    createdAt: Date.now()
+  });
+
+  montoInput.value = '';
+  closeModal('modal-transfer');
+
+  persistState();
+  updateUI();
+}
+
+// 4. Submit Nuevo Pago Fijo
+function submitNuevoPagoFijo() {
+  const nombreInput = document.getElementById('inp-fijo-nombre');
+  const montoInput = document.getElementById('inp-fijo-monto');
+  const diaInput = document.getElementById('inp-fijo-dia');
+  const catSelect = document.getElementById('inp-fijo-cat');
+
+  const nombre = nombreInput ? nombreInput.value.trim() : '';
+  const monto = parseFloat(montoInput ? montoInput.value : 0);
+  const dia = parseInt(diaInput ? diaInput.value : 15, 10);
+  const cat = catSelect ? catSelect.value : 'Vivienda';
+
+  if (!nombre || monto <= 0) {
+    alert('Ingresa el nombre y un monto válido.');
+    return;
+  }
+
+  state.fixedPayments.push({
+    id: 'f_' + Date.now(),
+    name: nombre,
+    amount: monto,
+    dueDay: dia,
+    category: cat,
+    isPaidThisMonth: false,
+    lastPaidMonth: ''
+  });
+
+  nombreInput.value = '';
+  montoInput.value = '';
+  closeModal('modal-fijo');
+
+  persistState();
+  updateUI();
+}
+
+// 5. Submit Entrega de Diezmo
+function submitEntregaDiezmo() {
+  const montoInput = document.getElementById('inp-diezmo-monto');
+  const origenSelect = document.getElementById('inp-diezmo-origen');
+  const iglesiaInput = document.getElementById('inp-diezmo-iglesia');
+  const fechaInput = document.getElementById('inp-diezmo-fecha');
+  const notaInput = document.getElementById('inp-diezmo-nota');
+
+  const amount = parseFloat(montoInput ? montoInput.value : 0);
+  if (!amount || amount <= 0) {
+    alert('Ingresa un monto válido para la entrega de diezmo.');
+    return;
+  }
+
+  const origen = origenSelect ? origenSelect.value : 'cash';
+  const church = (iglesiaInput && iglesiaInput.value.trim()) ? iglesiaInput.value.trim() : 'Iglesia Adventista';
+  const date = (fechaInput && fechaInput.value) ? fechaInput.value : new Date().toISOString().split('T')[0];
+  const note = notaInput ? notaInput.value.trim() : '';
+
+  // Deduct from Tithe fund and account
+  state.funds.tithe = Math.max(0, (Number(state.funds.tithe) || 0) - amount);
+
+  // Register in Tithe Deliveries
+  state.titheDeliveries.unshift({
+    id: 'td_' + Date.now(),
+    amount: amount,
+    fromAccount: origen,
+    church: church,
+    date: date,
+    note: note
+  });
+
+  // Register in general ledger
+  state.transactions.unshift({
+    id: 'tx_' + Date.now(),
+    type: 'tithe_delivery',
+    amount: amount,
+    accountId: origen,
+    category: 'Diezmo',
+    description: `Entrega de Diezmo - ${church}`,
+    date: date,
+    createdAt: Date.now()
+  });
+
+  montoInput.value = '';
+  closeModal('modal-entrega-diezmo');
+
+  persistState();
+  updateUI();
+}
+
+// 6. Submit Nueva Meta de Ahorro
+function submitNuevaMetaAhorro() {
+  const nombreInput = document.getElementById('inp-meta-nombre');
+  const montoInput = document.getElementById('inp-meta-monto');
+
+  const nombre = nombreInput ? nombreInput.value.trim() : '';
+  const monto = parseFloat(montoInput ? montoInput.value : 0);
+
+  if (!nombre || monto <= 0) {
+    alert('Ingresa un nombre y monto objetivo para la meta.');
+    return;
+  }
+
+  state.savingsGoals.push({
+    id: 'g_' + Date.now(),
+    name: nombre,
+    targetAmount: monto,
+    currentAmount: 0
+  });
+
+  nombreInput.value = '';
+  montoInput.value = '';
+  closeModal('modal-meta-ahorro');
+
+  persistState();
+  updateUI();
+}
+
+// 7. Delete Transaction
+function deleteTransaction(txId) {
+  if (!confirm('¿Deseas eliminar este movimiento del historial?')) return;
+  state.transactions = state.transactions.filter(t => t.id !== txId);
+  persistState();
+  updateUI();
+}
+
+// Configuration & Backup Handlers
+function saveFinancialConfig() {
+  const currInp = document.getElementById('cfg-currency');
+  const titheInp = document.getElementById('cfg-tithe-pct');
+  const savInp = document.getElementById('cfg-savings-pct');
+  const workInp = document.getElementById('cfg-workdays');
+
+  state.config.currency = currInp ? currInp.value.trim() : 'S/.';
+  state.config.tithePct = parseFloat(titheInp ? titheInp.value : 10) || 10;
+  state.config.savingsPct = parseFloat(savInp ? savInp.value : 20) || 20;
+  state.config.workDaysPerMonth = parseInt(workInp ? workInp.value : 26, 10) || 26;
+
+  persistState();
+  updateUI();
+  alert('Parámetros guardados con éxito.');
+}
+
+function submitSyncPasscode() {
+  const passInp = document.getElementById('modal-sync-pass');
+  const code = passInp ? passInp.value.trim() : '';
+  if (!code) {
+    alert('Ingresa una clave de seguridad.');
+    return;
+  }
+
+  state.config.cloudPasscode = code;
+  state.config.cloudSyncEnabled = true;
+  closeModal('modal-sync');
+  pushCloudState();
+}
+
+function syncNowWithCloud() {
+  const passInp = document.getElementById('cfg-cloud-passcode');
+  if (passInp && passInp.value.trim()) {
+    state.config.cloudPasscode = passInp.value.trim();
+    state.config.cloudSyncEnabled = true;
+  }
+  pushCloudState();
+}
+
+function exportDataJSON() {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+  const downloadAnchor = document.createElement('a');
+  downloadAnchor.setAttribute("href", dataStr);
+  downloadAnchor.setAttribute("download", `finanzas_backup_${new Date().toISOString().split('T')[0]}.json`);
+  document.body.appendChild(downloadAnchor);
+  downloadAnchor.click();
+  downloadAnchor.remove();
+}
+
+function exportTransactionsCSV() {
+  let csv = "\uFEFFFecha,Tipo,Categoría,Descripción,Monto,Cuenta\n";
+  state.transactions.forEach(t => {
+    const typeLabel = t.type === 'income' ? 'Ingreso' : (t.type === 'expense' ? 'Gasto' : t.type);
+    const accLabel = t.accountId === 'cash' ? 'Efectivo' : 'Banco/Digital';
+    csv += `"${t.date || ''}","${typeLabel}","${t.category || ''}","${(t.description || '').replace(/"/g, '""')}","${t.amount}","${accLabel}"\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `movimientos_finanzas_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function importDataJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (imported && (imported.accounts || imported.transactions)) {
+        state = imported;
+        persistState();
+        updateUI();
+        alert('¡Copia de seguridad restaurada con éxito!');
+      } else {
+        alert('Archivo de copia de seguridad no válido.');
+      }
+    } catch (err) {
+      alert('Error al leer el archivo JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function resetAllDataConfirm() {
+  if (confirm('⚠️ ¿Estás completamente seguro de reiniciar todos los datos a cero? Se borrarán todos los movimientos registrados.')) {
+    state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+    persistState();
+    updateUI();
+    alert('Datos reiniciados.');
+  }
+}
+
+// Modal Helpers
+function openModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.add('open');
+  }
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.remove('open');
+  }
+}
+
+// Close modal when clicking outside
+window.addEventListener('click', (e) => {
+  if (e.target && e.target.classList.contains('modal-backdrop')) {
+    e.target.classList.remove('open');
+  }
+});
+
+function escapeHTML(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }

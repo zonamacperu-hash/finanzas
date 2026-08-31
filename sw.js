@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finanzas-cache-v1';
+const CACHE_NAME = 'finanzas-cache-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -14,7 +14,7 @@ self.addEventListener('install', (e) => {
       return cache.addAll(ASSETS);
     })
   );
-  self.skipWaiting(); // Force the waiting service worker to become active immediately
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
@@ -28,15 +28,24 @@ self.addEventListener('activate', (e) => {
         })
       );
     }).then(() => {
-      return self.clients.claim(); // Force the active service worker to take control of all open clients
+      return self.clients.claim();
     })
   );
 });
 
 self.addEventListener('fetch', (e) => {
+  // Let Cloudflare API requests bypass cache
+  if (e.request.url.includes('/api/')) {
+    return;
+  }
+  
   e.respondWith(
     caches.match(e.request).then((cachedResponse) => {
-      return cachedResponse || fetch(e.request);
+      return cachedResponse || fetch(e.request).catch(() => {
+        if (e.request.destination === 'document') {
+          return caches.match('./index.html');
+        }
+      });
     })
   );
 });

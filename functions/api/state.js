@@ -1,17 +1,16 @@
 export async function onRequestGet(context) {
   try {
-    const kv = context.env.EFOOTBALL_KV;
+    const kv = context.env.FINANZAS_KV || context.env.EFOOTBALL_KV;
     if (!kv) {
-      return new Response(JSON.stringify({ error: "KV database binding EFOOTBALL_KV not found. Please bind EFOOTBALL_KV in Cloudflare dashboard." }), {
+      return new Response(JSON.stringify({ error: "KV database binding FINANZAS_KV not found. Please bind FINANZAS_KV or EFOOTBALL_KV in Cloudflare dashboard." }), {
         status: 500,
         headers: { "Content-Type": "application/json" }
       });
     }
 
-    const state = await kv.get("state");
+    const state = await kv.get("finanzas_state");
     if (!state) {
-      // Return empty initial state structure
-      return new Response(JSON.stringify({ active: false, players: [], teams: [], fixtures: [], semifinals: null, grandFinal: null }), {
+      return new Response(JSON.stringify({ empty: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
       });
@@ -31,9 +30,9 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   try {
-    const kv = context.env.EFOOTBALL_KV;
+    const kv = context.env.FINANZAS_KV || context.env.EFOOTBALL_KV;
     if (!kv) {
-      return new Response(JSON.stringify({ error: "KV database binding EFOOTBALL_KV not found." }), {
+      return new Response(JSON.stringify({ error: "KV database binding FINANZAS_KV not found." }), {
         status: 500,
         headers: { "Content-Type": "application/json" }
       });
@@ -49,16 +48,16 @@ export async function onRequestPost(context) {
     }
 
     const body = await context.request.json();
-    if (typeof body !== 'object' || body === null || !('active' in body)) {
+    if (typeof body !== 'object' || body === null) {
       return new Response(JSON.stringify({ error: "Invalid state structure" }), {
         status: 400,
         headers: { "Content-Type": "application/json" }
       });
     }
 
-    await kv.put("state", JSON.stringify(body));
+    await kv.put("finanzas_state", JSON.stringify(body));
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, timestamp: Date.now() }), {
       status: 200,
       headers: { "Content-Type": "application/json" }
     });

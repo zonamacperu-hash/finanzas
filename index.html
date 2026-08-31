@@ -3,300 +3,875 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Finanzas - Tournament Manager</title>
-  <!-- PWA Support -->
+  <title>Finanzas Pro - Control Financiero y Ahorro</title>
+  
+  <!-- PWA Metadata -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#10b981">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="logo.png">
   
-  <!-- CSS Styles -->
+  <!-- Stylesheets -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <div class="container">
-    <!-- Header -->
-    <header>
-      <div class="brand">
-        <img src="logo.png" alt="Finanzas Logo">
+  <div class="app-container">
+    
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-icon-wrapper">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
         <div>
-          <h1>Finanzas</h1>
-          <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; letter-spacing: 1px;">Tournament Manager</span>
+          <h1 class="brand-title">Finanzas Pro</h1>
+          <div class="brand-subtitle">
+            <span class="dot"></span>
+            <span>Control Independiente</span>
+          </div>
         </div>
       </div>
-      <div style="display: flex; gap: 8px;" id="header-actions">
-        <!-- Dynamically populated via JS -->
+
+      <div class="header-controls">
+        <span id="sync-status" class="status-badge" onclick="openModal('modal-sync')" style="cursor: pointer;" title="Configurar Sincronización en la Nube">
+          <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+          <span id="sync-text">Local / Offline</span>
+        </span>
+        <button class="btn-quick btn-quick-primary" onclick="openModal('modal-ingreso')">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          <span>+ Ingreso</span>
+        </button>
+        <button class="btn-quick btn-quick-secondary" onclick="openModal('modal-gasto')">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/></svg>
+          <span>- Gasto</span>
+        </button>
       </div>
     </header>
 
-    <!-- Main Navigation Tabs -->
-    <nav class="nav-tabs">
-      <button class="nav-tab active" data-view="view-posiciones">
-        <i class="icon-chart"></i>
-        <span>Posiciones</span>
+    <!-- Navigation Tabs -->
+    <nav class="nav-container">
+      <button class="nav-item active" data-view="view-dashboard">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        <span>Dashboard</span>
       </button>
-      <button class="nav-tab" data-view="view-fixture">
-        <i class="icon-calendar"></i>
-        <span>Fixture</span>
+      <button class="nav-item" data-view="view-reparto">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <span>Caja & Reparto</span>
       </button>
-      <button class="nav-tab" data-view="view-sorteo">
-        <i class="icon-users"></i>
-        <span>Sorteo / Admin</span>
+      <button class="nav-item" data-view="view-fijos">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span>Pagos Fijos</span>
+      </button>
+      <button class="nav-item" data-view="view-ahorros">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        <span>Ahorro & Diezmo</span>
+      </button>
+      <button class="nav-item" data-view="view-reportes">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span>Reportes</span>
+      </button>
+      <button class="nav-item" data-view="view-config">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>Ajustes</span>
       </button>
     </nav>
 
-    <!-- VIEWS -->
+    <!-- VIEWS CONTAINER -->
 
-    <!-- 1. STANDINGS VIEW -->
-    <main id="view-posiciones" class="view active">
-      <div class="card card-green">
-        <h2 class="card-title"><i class="icon-trophy" style="color: var(--accent-gold);"></i> Tabla de Posiciones</h2>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
-          Se clasifica en base a la bolsa acumulada de puntos de la pareja. Los <strong>dos primeros</strong> pasan a la Gran Final el Fin de Semana.
-        </p>
-        
-        <div class="table-responsive">
-          <table class="standings-table">
-            <thead>
-              <tr>
-                <th style="width: 50px;">Pos</th>
-                <th>Pareja (Jugadores)</th>
-                <th style="text-align: center;">PJ</th>
-                <th style="text-align: center;">PG</th>
-                <th style="text-align: center;">PE</th>
-                <th style="text-align: center;">PP</th>
-                <th style="text-align: center;">GF</th>
-                <th style="text-align: center;">GC</th>
-                <th style="text-align: center; color: var(--accent-green);">Bolsa</th>
-              </tr>
-            </thead>
-            <tbody id="standings-body">
-              <!-- Dynamically populated via JS -->
-            </tbody>
-          </table>
+    <!-- 1. DASHBOARD VIEW -->
+    <section id="view-dashboard" class="view-section active">
+      
+      <!-- Virtual Financial Advisor Message -->
+      <div class="advisor-card" id="advisor-box">
+        <div class="advisor-avatar">
+          <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
         </div>
+        <div class="advisor-content">
+          <h4>Asesor Financiero Virtual</h4>
+          <p id="advisor-text">Cargando diagnóstico financiero en tiempo real...</p>
+        </div>
+      </div>
+
+      <!-- Hero Main Balance Card -->
+      <div class="card hero-card" style="margin-bottom: 20px;">
+        <div class="hero-balance-label">Patrimonio / Saldo Total Neto</div>
+        <div class="hero-balance-value" id="dash-total-balance">S/ 0.00</div>
         
-        <!-- Legend -->
-        <div style="display: flex; gap: 16px; margin-top: 16px; font-size: 0.75rem; color: var(--text-secondary);">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="display: inline-block; width: 12px; height: 12px; border-left: 3px solid var(--accent-gold); background: rgba(251,191,36,0.1);"></span>
-            <span>Zona Gran Final (Top 1)</span>
+        <div class="sub-balances-row">
+          <div class="sub-balance-item">
+            <div class="sub-balance-title">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+              <span>Efectivo en Mano</span>
+            </div>
+            <div class="sub-balance-amount" id="dash-cash-balance">S/ 0.00</div>
           </div>
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="display: inline-block; width: 12px; height: 12px; border-left: 3px solid var(--text-primary); background: rgba(255,255,255,0.05);"></span>
-            <span>Zona Gran Final (Top 2)</span>
+          
+          <div class="sub-balance-item">
+            <div class="sub-balance-title">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+              <span>Banco / Digital</span>
+            </div>
+            <div class="sub-balance-amount" id="dash-bank-balance">S/ 0.00</div>
+          </div>
+
+          <div class="sub-balance-item">
+            <div class="sub-balance-title">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              <span>Fondo de Ahorro</span>
+            </div>
+            <div class="sub-balance-amount" style="color: var(--blue-light);" id="dash-savings-balance">S/ 0.00</div>
+          </div>
+
+          <div class="sub-balance-item">
+            <div class="sub-balance-title">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+              <span>Diezmo Apartado</span>
+            </div>
+            <div class="sub-balance-amount" style="color: var(--gold-light);" id="dash-tithe-balance">S/ 0.00</div>
           </div>
         </div>
       </div>
-    </main>
 
-    <!-- 2. FIXTURES & RESULTS VIEW -->
-    <main id="view-fixture" class="view">
-      <div class="day-nav" id="day-nav-bar">
-        <button class="day-btn active" data-day="lunes">Lunes (J1)</button>
-        <button class="day-btn" data-day="martes">Martes (J2)</button>
-        <button class="day-btn" data-day="jueves">Jueves (J3)</button>
-        <button class="day-btn recovery-day" data-day="viernes">Viernes (Recuperación)</button>
-        <button class="day-btn" data-day="finde" style="border-color: var(--accent-gold); color: var(--accent-gold);">Weekend (Finales)</button>
+      <!-- Quick Metrics Grid -->
+      <div class="grid-4">
+        <div class="stat-box highlight-emerald">
+          <div class="stat-label">
+            <span>Ingresos este Mes</span>
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+          </div>
+          <div class="stat-val" id="dash-month-income">S/ 0.00</div>
+          <div class="stat-footer" id="dash-income-days">0 días laborables</div>
+        </div>
+
+        <div class="stat-box highlight-rose">
+          <div class="stat-label">
+            <span>Gastos este Mes</span>
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/></svg>
+          </div>
+          <div class="stat-val" style="color: var(--rose-light);" id="dash-month-expenses">S/ 0.00</div>
+          <div class="stat-footer" id="dash-expense-rate">Promedio diario</div>
+        </div>
+
+        <div class="stat-box highlight-blue">
+          <div class="stat-label">
+            <span>Pagos Fijos Restantes</span>
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          </div>
+          <div class="stat-val" style="color: var(--blue-light);" id="dash-fixed-pending">S/ 0.00</div>
+          <div class="stat-footer" id="dash-fixed-quota">Cuota diaria sugerida</div>
+        </div>
+
+        <div class="stat-box highlight-gold">
+          <div class="stat-label">
+            <span>Ahorro Acumulado (20%)</span>
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          </div>
+          <div class="stat-val" style="color: var(--gold-light);" id="dash-savings-total">S/ 0.00</div>
+          <div class="stat-footer" id="dash-savings-pct">20% de tus ingresos</div>
+        </div>
       </div>
 
-      <!-- Jornada 1: Lunes -->
-      <section id="day-lunes" class="day-content active">
-        <!-- Dynamically populated series list -->
-      </section>
+      <!-- Sabbath Banner -->
+      <div class="sabbath-banner">
+        <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+        <div>
+          <strong>Horario Laboral Personalizado:</strong> Trabajando de Domingo a Viernes. Sábado es día de reposo y descanso espiritual; las metas y promedios se calculan automáticamente sobre 26 días laborables al mes.
+        </div>
+      </div>
 
-      <!-- Jornada 2: Martes -->
-      <section id="day-martes" class="day-content">
-        <!-- Dynamically populated series list -->
-      </section>
+      <!-- Recent Transactions Section -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Últimos Movimientos</span>
+          </h3>
+          <button class="btn-quick btn-quick-secondary" onclick="switchTab('view-reparto')">Ver todos</button>
+        </div>
+        <div id="dash-recent-txs" class="tx-list">
+          <!-- Populated by JS -->
+        </div>
+      </div>
 
-      <!-- Jornada 3: Jueves -->
-      <section id="day-jueves" class="day-content">
-        <!-- Dynamically populated series list -->
-      </section>
+    </section>
 
-      <!-- Viernes: Recuperación -->
-      <section id="day-viernes" class="day-content">
+    <!-- 2. CAJA & REPARTO INTELIGENTE VIEW -->
+    <section id="view-reparto" class="view-section">
+      <div class="grid-2">
+        
+        <!-- Live Smart Allocation Calculator Card -->
         <div class="card">
-          <div class="recovery-container">
-            <i class="icon-clock"></i>
-            <h2 class="recovery-title">Día de Recuperación</h2>
-            <p class="recovery-desc">
-              El viernes está reservado para disputar partidos postergados, descansar y preparar la estrategia para la Gran Final del Fin de Semana.
-            </p>
-            <div class="recovery-stats">
-              <div class="rec-stat-card">
-                <div class="rec-stat-val" id="stat-pending-matches">0</div>
-                <div class="rec-stat-lbl">Partidos Pendientes</div>
+          <div class="card-header">
+            <h3 class="card-title">
+              <svg style="color: var(--emerald-light);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              <span>Calculadora de Reparto Inteligente</span>
+            </h3>
+          </div>
+          <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 14px;">
+            Ingresa cualquier ganancia para desglosarla automáticamente según tus reglas financieras.
+          </p>
+
+          <div class="form-group">
+            <label class="form-label">Ingreso Bruto a Distribuir</label>
+            <input type="number" id="calc-input-amount" class="form-control form-control-mono" placeholder="0.00" oninput="runAllocationCalculator()">
+          </div>
+
+          <div class="allocation-preview">
+            <div class="alloc-row">
+              <div class="alloc-info">
+                <span class="alloc-badge badge-gold">10% Diezmo</span>
+                <span style="font-size: 0.85rem;">Apartado Sagrado</span>
               </div>
-              <div class="rec-stat-card">
-                <div class="rec-stat-val" id="stat-total-goals">0</div>
-                <div class="rec-stat-lbl">Goles Totales</div>
-              </div>
+              <div class="alloc-amount" style="color: var(--gold-light);" id="calc-tithe-val">S/ 0.00</div>
             </div>
-            <div id="recovery-pending-list" style="width: 100%; max-width: 500px; margin-top: 16px; text-align: left;">
-              <!-- Dynamic list of pending matches -->
+
+            <div class="alloc-row">
+              <div class="alloc-info">
+                <span class="alloc-badge badge-blue">20% Ahorro</span>
+                <span style="font-size: 0.85rem;">Fondo de Seguridad</span>
+              </div>
+              <div class="alloc-amount" style="color: var(--blue-light);" id="calc-savings-val">S/ 0.00</div>
+            </div>
+
+            <div class="alloc-row">
+              <div class="alloc-info">
+                <span class="alloc-badge badge-purple">Fijos Sugeridos</span>
+                <span style="font-size: 0.85rem;">Provisión Diaria</span>
+              </div>
+              <div class="alloc-amount" style="color: var(--purple-light);" id="calc-fixed-val">S/ 0.00</div>
+            </div>
+
+            <div class="alloc-row">
+              <div class="alloc-info">
+                <span class="alloc-badge badge-emerald">Disponible Libre</span>
+                <span style="font-size: 0.85rem; font-weight: 700;">Gastos Diarios Reales</span>
+              </div>
+              <div class="alloc-amount" style="color: var(--emerald-light); font-size: 1.2rem;" id="calc-free-val">S/ 0.00</div>
             </div>
           </div>
-        </div>
-      </section>
 
-      <!-- Fin de Semana: Gran Final -->
-      <section id="day-finde" class="day-content">
-        <!-- Dynamically populated Grand Final board -->
-      </section>
-    </main>
-
-    <!-- 3. DRAW / ADMIN SETUP VIEW -->
-    <main id="view-sorteo" class="view">
-      <!-- Locked configuration state for non-admin -->
-      <div class="card" id="draw-config-card-locked">
-        <div style="text-align: center; padding: 40px 20px;">
-          <i class="icon-settings" style="font-size: 3.5rem; color: rgba(255,255,255,0.05); display: block; margin-bottom: 16px;"></i>
-          <h2 style="font-size: 1.25rem; font-weight: 700; text-transform: uppercase; margin-bottom: 12px;">Sección Protegida</h2>
-          <p style="font-size: 0.9rem; color: var(--text-secondary); max-width: 400px; margin: 0 auto 20px auto;">
-            Para configurar el sorteo de parejas, reiniciar el torneo o ingresar resultados, activa el Modo Administrador.
-          </p>
-          <button class="btn-primary" style="max-width: 200px; margin: 0 auto; background: linear-gradient(135deg, var(--accent-cyan) 0%, #0284c7 100%); color: #fff; box-shadow: 0 0 15px rgba(0, 210, 255, 0.3);" onclick="openAdminModal()">
-            Acceso Admin
+          <button class="btn btn-primary btn-block" onclick="applyQuickAllocationFromCalc()">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <span>Registrar Este Ingreso con Reparto Automático</span>
           </button>
         </div>
+
+        <!-- Quick Summary & Account Balances -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
+              <span>Tus Cuentas & Billeteras</span>
+            </h3>
+            <button class="btn-quick btn-quick-secondary" onclick="openModal('modal-transfer')">⇄ Transferir</button>
+          </div>
+          
+          <div id="accounts-list-container" class="tx-list">
+            <!-- Populated by JS -->
+          </div>
+
+          <div style="margin-top: 20px; display: flex; gap: 10px;">
+            <button class="btn btn-primary" style="flex: 1;" onclick="openModal('modal-ingreso')">+ Nuevo Ingreso</button>
+            <button class="btn btn-danger" style="flex: 1;" onclick="openModal('modal-gasto')">- Registrar Gasto</button>
+          </div>
+        </div>
+
       </div>
 
-      <!-- Draw Configuration -->
-      <div class="card" id="draw-config-card" style="display: none;">
-        <h2 class="card-title"><i class="icon-users" style="color: var(--accent-blue);"></i> Configuración del Sorteo</h2>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
-          Ingresa los nombres de los 8 jugadores (repartidos en Bombo A y Bombo B) y los 8 países. El sistema emparejará aleatoriamente un jugador de cada bombo y le asignará un país a cada uno.
-        </p>
-
-        <div class="form-grid">
-          <!-- Pot A (4 Players) -->
-          <div class="pot-column">
-            <h3>Bombo A <span class="pot-badge pot-badge-a">Jugador 1</span></h3>
-            <div class="input-group">
-              <label>Jugador A1</label>
-              <input type="text" id="p-a1" class="input-control" value="Carlos">
-            </div>
-            <div class="input-group">
-              <label>Jugador A2</label>
-              <input type="text" id="p-a2" class="input-control" value="Mateo">
-            </div>
-            <div class="input-group">
-              <label>Jugador A3</label>
-              <input type="text" id="p-a3" class="input-control" value="Sofía">
-            </div>
-            <div class="input-group">
-              <label>Jugador A4</label>
-              <input type="text" id="p-a4" class="input-control" value="Lucas">
-            </div>
-          </div>
-
-          <!-- Pot B (4 Players) -->
-          <div class="pot-column">
-            <h3>Bombo B <span class="pot-badge pot-badge-b">Jugador 2</span></h3>
-            <div class="input-group">
-              <label>Jugador B1</label>
-              <input type="text" id="p-b1" class="input-control" value="Diego">
-            </div>
-            <div class="input-group">
-              <label>Jugador B2</label>
-              <input type="text" id="p-b2" class="input-control" value="Valentina">
-            </div>
-            <div class="input-group">
-              <label>Jugador B3</label>
-              <input type="text" id="p-b3" class="input-control" value="Thiago">
-            </div>
-            <div class="input-group">
-              <label>Jugador B4</label>
-              <input type="text" id="p-b4" class="input-control" value="Martina">
-            </div>
+      <!-- Transactions Full Ledger Card -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            <span>Historial Completo de Movimientos</span>
+          </h3>
+          <div style="display: flex; gap: 8px;">
+            <select id="tx-filter-type" class="form-control" style="padding: 6px 10px; font-size: 0.8rem; width: auto;" onchange="renderTransactionsList()">
+              <option value="all">Todos los tipos</option>
+              <option value="income">Solo Ingresos</option>
+              <option value="expense">Solo Gastos</option>
+              <option value="tithe">Diezmos</option>
+              <option value="savings">Ahorros</option>
+            </select>
           </div>
         </div>
 
-        <!-- 8 Countries -->
-        <div class="card" style="background: rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 20px;">
-          <h3 style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">Lista de Países</h3>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <input type="text" id="c-1" class="input-control" value="Argentina">
-            <input type="text" id="c-2" class="input-control" value="Brasil">
-            <input type="text" id="c-3" class="input-control" value="Francia">
-            <input type="text" id="c-4" class="input-control" value="Inglaterra">
-            <input type="text" id="c-5" class="input-control" value="España">
-            <input type="text" id="c-6" class="input-control" value="Alemania">
-            <input type="text" id="c-7" class="input-control" value="Italia">
-            <input type="text" id="c-8" class="input-control" value="Portugal">
-          </div>
+        <div id="all-transactions-list" class="tx-list">
+          <!-- Populated by JS -->
         </div>
+      </div>
+    </section>
 
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
-          <input type="checkbox" id="manual-draw-checkbox" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent-cyan);">
-          <label for="manual-draw-checkbox" style="font-size: 0.85rem; color: var(--text-primary); cursor: pointer; font-weight: 500; user-select: none;">
-            Asignación Manual (fijar parejas A1-B1, A2-B2... y países en orden)
-          </label>
+    <!-- 3. PAGOS FIJOS VIEW -->
+    <section id="view-fijos" class="view-section">
+      
+      <div class="grid-3" style="margin-bottom: 20px;">
+        <div class="stat-box highlight-rose">
+          <div class="stat-label">Total Pagos Fijos Mensuales</div>
+          <div class="stat-val" id="fixed-total-monthly">S/ 0.00</div>
+          <div class="stat-footer">Compromisos del mes</div>
         </div>
-
-        <button class="btn-primary" id="btnRunDraw" onclick="runDraw()">
-          <i class="icon-ball"></i> Realizar Sorteo
-        </button>
+        <div class="stat-box highlight-emerald">
+          <div class="stat-label">Pagados este Mes</div>
+          <div class="stat-val" style="color: var(--emerald-light);" id="fixed-total-paid">S/ 0.00</div>
+          <div class="stat-footer" id="fixed-paid-count">0 de 0 cuentas al día</div>
+        </div>
+        <div class="stat-box highlight-blue">
+          <div class="stat-label">Cuota Diaria Requerida</div>
+          <div class="stat-val" style="color: var(--blue-light);" id="fixed-daily-quota">S/ 0.00</div>
+          <div class="stat-footer">Por cada día de trabajo (Dom-Vie)</div>
+        </div>
       </div>
 
-      <!-- Draw Results -->
-      <div class="card card-green" id="draw-results-card" style="display: none;">
-        <h2 class="card-title"><i class="icon-crown" style="color: var(--accent-gold);"></i> Parejas e Hitos del Sorteo</h2>
-        <p style="font-size: 0.85rem; color: var(--text-secondary);">
-          Los emparejamientos y países asignados de manera aleatoria. ¡Listos para iniciar la competencia!
-        </p>
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">
+              <svg style="color: var(--blue-light);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <span>Control y Vencimiento de Cuentas Fijas</span>
+            </h3>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">
+              Registra alquiler, luz, agua, internet, deudas y suscripciones para mantenerlas al día.
+            </p>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('modal-fijo')">+ Nuevo Pago Fijo</button>
+        </div>
+
+        <div class="fixed-bills-grid" id="fixed-bills-container">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. AHORROS & DIEZMOS VIEW -->
+    <section id="view-ahorros" class="view-section">
+      <div class="grid-2">
         
-        <div class="pairs-grid" id="pairs-container">
-          <!-- Dynamically populated pairs -->
-        </div>
-      </div>
+        <!-- Diezmo Section (10%) -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <svg style="color: var(--gold-light);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+              <span>Libro de Diezmos (10%)</span>
+            </h3>
+            <span class="alloc-badge badge-gold">Fidelidad</span>
+          </div>
 
-    <!-- Modal de Login Admin -->
-    <div id="admin-modal" class="modal-overlay" style="display: none;">
-      <div class="modal-content card">
-        <h2 class="card-title" style="color: var(--accent-cyan); border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px;"><i class="icon-settings" style="color: var(--accent-cyan);"></i> Acceso Administrador</h2>
-        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
-          Ingresa la contraseña para activar el **Modo Administrador** y permitir modificaciones en sorteos, parejas o marcadores.
-        </p>
-        <div class="input-group">
-          <label style="font-weight: 600;">Contraseña Administrador</label>
-          <input type="password" id="admin-passcode" class="input-control" placeholder="••••••••" onkeydown="if(event.key==='Enter') loginAdmin()">
-        </div>
-        <div id="login-error-msg" style="color: var(--accent-danger); font-size: 0.8rem; margin-top: 10px; font-weight: 600; display: none;">
-          ⚠️ Contraseña incorrecta. Inténtalo de nuevo.
-        </div>
-        <div style="display: flex; gap: 10px; margin-top: 20px;">
-          <button class="btn-primary" style="margin-top: 0; background: linear-gradient(135deg, var(--accent-cyan) 0%, #0284c7 100%); color: #fff; box-shadow: 0 0 10px rgba(0,210,255,0.2);" onclick="loginAdmin()">Ingresar</button>
-          <button class="reset-btn" style="flex: 1; border-radius: 10px;" onclick="closeAdminModal()">Cancelar</button>
-        </div>
-      </div>
-    </div>
+          <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px;">
+            <div style="font-size: 0.82rem; color: var(--gold-light); font-weight: 700; text-transform: uppercase;">Diezmo Acumulado por Entregar</div>
+            <div style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; color: #ffffff; margin: 6px 0;" id="tithe-box-amount">S/ 0.00</div>
+            <p style="font-size: 0.78rem; color: var(--text-secondary);">
+              El 10% de cada ganancia se acumula aquí hasta el momento de tu entrega en el templo.
+            </p>
+          </div>
 
-    <!-- Modal de Confirmación de Reinicio -->
-    <div id="confirm-modal" class="modal-overlay" style="display: none;">
-      <div class="modal-content card" style="border-color: var(--accent-danger) !important; box-shadow: 0 0 25px rgba(244, 63, 94, 0.25);">
-        <h2 class="card-title" style="color: var(--accent-danger); border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 16px;"><i class="icon-settings" style="color: var(--accent-danger);"></i> ¿Reiniciar Torneo?</h2>
-        <p style="font-size: 0.9rem; color: var(--text-primary); margin-bottom: 12px; font-weight: 600;">
-          ¿Estás seguro de que deseas reiniciar el torneo?
-        </p>
-        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.4;">
-          Esta acción borrará de forma permanente todos los datos, incluyendo jugadores, parejas, fixture y resultados cargados hasta el momento. Esta acción no se puede deshacer.
-        </p>
-        <div style="display: flex; gap: 10px;">
-          <button class="btn-primary" style="margin-top: 0; background: linear-gradient(135deg, var(--accent-danger) 0%, #be123c 100%); color: #fff; box-shadow: 0 0 10px rgba(244,63,94,0.2);" onclick="executeReset()">Reiniciar</button>
-          <button class="reset-btn" style="flex: 1; border-radius: 10px;" onclick="closeConfirmModal()">Cancelar</button>
-        </div>
-      </div>
+          <button class="btn btn-gold btn-block" onclick="openModal('modal-entrega-diezmo')">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <span>Registrar Entrega de Diezmo</span>
+          </button>
 
-    </div>
+          <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--text-secondary); margin: 20px 0 10px;">Historial de Entregas</h4>
+          <div id="tithe-history-list" class="tx-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Ahorro Section (20%) -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <svg style="color: var(--blue-light);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              <span>Bóveda de Ahorro (20%)</span>
+            </h3>
+            <button class="btn-quick btn-quick-secondary" onclick="openModal('modal-meta-ahorro')">+ Nueva Meta</button>
+          </div>
+
+          <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px;">
+            <div style="font-size: 0.82rem; color: var(--blue-light); font-weight: 700; text-transform: uppercase;">Saldo Total Ahorrado</div>
+            <div style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: 800; color: #ffffff; margin: 6px 0;" id="savings-box-amount">S/ 0.00</div>
+            <p style="font-size: 0.78rem; color: var(--text-secondary);" id="savings-months-cushion">
+              Fondo de emergencia equivalente a 0 meses de gastos fijos.
+            </p>
+          </div>
+
+          <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--text-secondary); margin: 20px 0 10px;">Tus Metas de Ahorro</h4>
+          <div id="savings-goals-list" class="tx-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 5. REPORTES & ANÁLISIS VIEW -->
+    <section id="view-reportes" class="view-section">
+      <div class="grid-2">
+        
+        <!-- Weekly Rhythm Chart (Domingo a Viernes) -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <svg style="color: var(--emerald-light);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              <span>Flujo de Ingresos Semanal</span>
+            </h3>
+            <span class="alloc-badge badge-emerald">Semana Actual</span>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">
+            Ritmo de facturación por día laboral (Sábado marcado como descanso):
+          </p>
+
+          <div class="chart-container">
+            <div class="weekly-chart" id="weekly-chart-bars">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Expense Category Breakdown -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <svg style="color: var(--rose-light);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
+              <span>Desglose de Gastos por Categoría</span>
+            </h3>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px;">
+            Identifica a dónde se está yendo tu dinero para evitar fugas:
+          </p>
+
+          <div id="category-breakdown-list" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 6. AJUSTES & SINCRONIZACIÓN VIEW -->
+    <section id="view-config" class="view-section">
+      <div class="grid-2">
+        
+        <!-- Financial Parameters -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+              <span>Parámetros Financieros</span>
+            </h3>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Símbolo de Moneda</label>
+            <input type="text" id="cfg-currency" class="form-control" value="S/.">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Porcentaje de Diezmo (%)</label>
+            <input type="number" id="cfg-tithe-pct" class="form-control" value="10" min="0" max="50">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Porcentaje de Ahorro (%)</label>
+            <input type="number" id="cfg-savings-pct" class="form-control" value="20" min="0" max="80">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Días Laborales al Mes (Base de Cálculo)</label>
+            <input type="number" id="cfg-workdays" class="form-control" value="26" min="1" max="31">
+            <small style="color: var(--text-muted); font-size: 0.72rem;">Por defecto 26 días (Domingo a Viernes, excluyendo 4-5 sábados al mes).</small>
+          </div>
+
+          <button class="btn btn-primary btn-block" onclick="saveFinancialConfig()">Guardar Parámetros</button>
+        </div>
+
+        <!-- Backup & Cloud Sync -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+              <span>Copia de Seguridad & Nube</span>
+            </h3>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <label class="form-label">Sincronización en la Nube (Cloudflare Pages KV)</label>
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+              <input type="password" id="cfg-cloud-passcode" class="form-control" placeholder="Contraseña de sync (ej: admin777)">
+              <button class="btn btn-blue" onclick="syncNowWithCloud()">Sincronizar</button>
+            </div>
+            <small style="color: var(--text-muted); font-size: 0.72rem;">Tus datos se sincronizan automáticamente si ingresas tu clave de acceso.</small>
+          </div>
+
+          <hr style="border: 0; border-top: 1px solid var(--border-subtle); margin: 20px 0;">
+
+          <div>
+            <label class="form-label">Exportar / Importar Archivo</label>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <button class="btn btn-ghost" onclick="exportDataJSON()">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                <span>Descargar Copia de Respaldo (JSON)</span>
+              </button>
+              
+              <button class="btn btn-ghost" onclick="exportTransactionsCSV()">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <span>Exportar Movimientos a Excel (CSV)</span>
+              </button>
+
+              <label class="btn btn-ghost" style="cursor: pointer;">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                <span>Restaurar desde Copia de Seguridad</span>
+                <input type="file" id="import-json-file" accept=".json" style="display: none;" onchange="importDataJSON(event)">
+              </label>
+
+              <button class="btn btn-danger" style="margin-top: 10px;" onclick="resetAllDataConfirm()">
+                <span>⚠️ Reiniciar Datos a Cero</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
 
   </div>
 
-  <!-- JavaScript Application -->
+  <!-- FLOATING ACTION BUTTON (MOBILE) -->
+  <button class="fab-btn" onclick="openModal('modal-ingreso')" title="Nuevo Ingreso">
+    <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+  </button>
+
+  <!-- MODALS -->
+
+  <!-- 1. MODAL NUEVO INGRESO -->
+  <div id="modal-ingreso" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color: var(--emerald-light);">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          <span>Registrar Nuevo Ingreso</span>
+        </h3>
+        <button class="modal-close" onclick="closeModal('modal-ingreso')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Monto del Ingreso</label>
+          <input type="number" id="inp-ingreso-monto" class="form-control form-control-mono" placeholder="0.00" oninput="updateModalIngresoReparto()">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Cuenta de Destino</label>
+          <select id="inp-ingreso-cuenta" class="form-control">
+            <option value="cash">💵 Efectivo en Mano</option>
+            <option value="bank">📱 Banco / Yape / Plin</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Concepto / Cliente (Opcional)</label>
+          <input type="text" id="inp-ingreso-desc" class="form-control" placeholder="Ej: Trabajo freelance, venta del día...">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Fecha</label>
+          <input type="date" id="inp-ingreso-fecha" class="form-control">
+        </div>
+
+        <!-- Automatic allocation preview in modal -->
+        <div class="allocation-preview">
+          <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px;">
+            ⚡ Reparto Automático de este Ingreso:
+          </div>
+          <div class="alloc-row">
+            <span style="font-size: 0.85rem; color: var(--gold-light);">🕊️ 10% Diezmo:</span>
+            <span style="font-family: var(--font-mono); font-weight: 700;" id="modal-ingreso-diezmo">S/ 0.00</span>
+          </div>
+          <div class="alloc-row">
+            <span style="font-size: 0.85rem; color: var(--blue-light);">🛡️ 20% Ahorro:</span>
+            <span style="font-family: var(--font-mono); font-weight: 700;" id="modal-ingreso-ahorro">S/ 0.00</span>
+          </div>
+          <div class="alloc-row">
+            <span style="font-size: 0.85rem; color: var(--emerald-light); font-weight: 700;">💵 Disponible Libre Real:</span>
+            <span style="font-family: var(--font-mono); font-weight: 800; color: var(--emerald-light);" id="modal-ingreso-libre">S/ 0.00</span>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+          <input type="checkbox" id="inp-ingreso-auto-allocate" checked style="width: 18px; height: 18px; accent-color: var(--emerald);">
+          <label for="inp-ingreso-auto-allocate" style="font-size: 0.82rem; color: var(--text-secondary);">Apartar inmediatamente el 10% de diezmo y 20% de ahorro en sus fondos</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-ingreso')">Cancelar</button>
+        <button class="btn btn-primary" onclick="submitNuevoIngreso()">Guardar Ingreso</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. MODAL NUEVO GASTO -->
+  <div id="modal-gasto" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color: var(--rose-light);">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/></svg>
+          <span>Registrar Gasto</span>
+        </h3>
+        <button class="modal-close" onclick="closeModal('modal-gasto')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Monto del Gasto</label>
+          <input type="number" id="inp-gasto-monto" class="form-control form-control-mono" placeholder="0.00">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Pagar con</label>
+          <select id="inp-gasto-cuenta" class="form-control">
+            <option value="cash">💵 Efectivo en Mano</option>
+            <option value="bank">📱 Banco / Yape / Plin</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Categoría</label>
+          <select id="inp-gasto-cat" class="form-control">
+            <option value="Alimentación">🍔 Alimentación / Comida</option>
+            <option value="Transporte">🚕 Transporte / Pasajes / Combustible</option>
+            <option value="Trabajo">💼 Herramientas / Mercadería / Trabajo</option>
+            <option value="Hogar">🏠 Hogar / Servicios</option>
+            <option value="Salud">💊 Salud / Medicina</option>
+            <option value="Gustos">☕ Gustos / Gastos Personales</option>
+            <option value="Imprevistos">⚠️ Imprevistos / Emergencias</option>
+            <option value="Otros">📦 Otros</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Descripción</label>
+          <input type="text" id="inp-gasto-desc" class="form-control" placeholder="Ej: Almuerzo, recarga, repuesto...">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Fecha</label>
+          <input type="date" id="inp-gasto-fecha" class="form-control">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-gasto')">Cancelar</button>
+        <button class="btn btn-danger" onclick="submitNuevoGasto()">Registrar Gasto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. MODAL TRANSFERENCIA / MOVER DINERO -->
+  <div id="modal-transfer" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color: var(--purple-light);">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+          <span>Mover Dinero entre Cuentas</span>
+        </h3>
+        <button class="modal-close" onclick="closeModal('modal-transfer')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Monto a Transferir</label>
+          <input type="number" id="inp-transfer-monto" class="form-control form-control-mono" placeholder="0.00">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Cuenta de Origen (De donde sale)</label>
+          <select id="inp-transfer-origen" class="form-control">
+            <option value="cash">💵 Efectivo en Mano</option>
+            <option value="bank">📱 Banco / Yape / Plin</option>
+            <option value="savings">🛡️ Fondo de Ahorro</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Cuenta de Destino (A donde entra)</label>
+          <select id="inp-transfer-destino" class="form-control">
+            <option value="bank">📱 Banco / Yape / Plin</option>
+            <option value="cash">💵 Efectivo en Mano</option>
+            <option value="savings">🛡️ Fondo de Ahorro</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nota o Motivo</label>
+          <input type="text" id="inp-transfer-desc" class="form-control" placeholder="Ej: Depósito de efectivo al banco...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-transfer')">Cancelar</button>
+        <button class="btn btn-primary" onclick="submitTransferencia()">Mover Dinero</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. MODAL NUEVO PAGO FIJO -->
+  <div id="modal-fijo" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color: var(--blue-light);">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          <span>Nuevo Pago Fijo Recurrente</span>
+        </h3>
+        <button class="modal-close" onclick="closeModal('modal-fijo')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nombre del Servicio / Compromiso</label>
+          <input type="text" id="inp-fijo-nombre" class="form-control" placeholder="Ej: Alquiler, Luz, Internet, Cuota de préstamo...">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Monto Mensual</label>
+          <input type="number" id="inp-fijo-monto" class="form-control form-control-mono" placeholder="0.00">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Día de Vencimiento de cada Mes</label>
+          <input type="number" id="inp-fijo-dia" class="form-control" min="1" max="31" value="15" placeholder="Ej: 5, 15, 28">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Categoría</label>
+          <select id="inp-fijo-cat" class="form-control">
+            <option value="Vivienda">🏠 Alquiler / Vivienda</option>
+            <option value="Servicios">💡 Luz / Agua / Gas</option>
+            <option value="Conectividad">📶 Internet / Celular</option>
+            <option value="Deudas">💳 Préstamos / Tarjetas</option>
+            <option value="Otros">📦 Otros Pagos Fijos</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-fijo')">Cancelar</button>
+        <button class="btn btn-blue" onclick="submitNuevoPagoFijo()">Guardar Pago Fijo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. MODAL REGISTRAR ENTREGA DE DIEZMO -->
+  <div id="modal-entrega-diezmo" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color: var(--gold-light);">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          <span>Registrar Entrega de Diezmo</span>
+        </h3>
+        <button class="modal-close" onclick="closeModal('modal-entrega-diezmo')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 14px;">
+          Registra la entrega de tu diezmo acumulado. Se descontará del fondo apartado y quedará guardado en tu libro de diezmos.
+        </p>
+
+        <div class="form-group">
+          <label class="form-label">Monto a Entregar</label>
+          <input type="number" id="inp-diezmo-monto" class="form-control form-control-mono" placeholder="0.00">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Entregar desde</label>
+          <select id="inp-diezmo-origen" class="form-control">
+            <option value="cash">💵 Efectivo en Mano</option>
+            <option value="bank">📱 Transferencia Bancaria</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Iglesia / Congregación (Opcional)</label>
+          <input type="text" id="inp-diezmo-iglesia" class="form-control" placeholder="Ej: Iglesia Adventista...">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Fecha de Entrega</label>
+          <input type="date" id="inp-diezmo-fecha" class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nota o Número de Sobre/Comprobante</label>
+          <input type="text" id="inp-diezmo-nota" class="form-control" placeholder="Ej: Sobre #1234, Diezmo de quincena...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-entrega-diezmo')">Cancelar</button>
+        <button class="btn btn-gold" onclick="submitEntregaDiezmo()">Confirmar Entrega</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. MODAL NUEVA META DE AHORRO -->
+  <div id="modal-meta-ahorro" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color: var(--blue-light);">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          <span>Nueva Meta de Ahorro</span>
+        </h3>
+        <button class="modal-close" onclick="closeModal('modal-meta-ahorro')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nombre de la Meta</label>
+          <input type="text" id="inp-meta-nombre" class="form-control" placeholder="Ej: Fondo de Emergencia 3 meses, Herramienta de trabajo...">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Monto Objetivo</label>
+          <input type="number" id="inp-meta-monto" class="form-control form-control-mono" placeholder="0.00">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Monto Inicial Aportado</label>
+          <input type="number" id="inp-meta-inicial" class="form-control form-control-mono" placeholder="0.00" value="0">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-meta-ahorro')">Cancelar</button>
+        <button class="btn btn-blue" onclick="submitNuevaMetaAhorro()">Crear Meta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. MODAL SINCRONIZACIÓN CLOUDFLARE -->
+  <div id="modal-sync" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+          <span>Sincronización en la Nube</span>
+        </h3>
+        <button class="modal-close" onclick="closeModal('modal-sync')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 14px;">
+          Ingresa la clave de acceso para sincronizar tus finanzas en tiempo real entre tu celular, laptop o cualquier dispositivo.
+        </p>
+
+        <div class="form-group">
+          <label class="form-label">Clave de Seguridad (Passcode)</label>
+          <input type="password" id="modal-sync-pass" class="form-control" placeholder="admin777">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-sync')">Cerrar</button>
+        <button class="btn btn-primary" onclick="submitSyncPasscode()">Conectar y Sincronizar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Logic JS -->
   <script src="app.js"></script>
 </body>
 </html>
