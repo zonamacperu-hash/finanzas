@@ -139,6 +139,14 @@
             </div>
             <div class="sub-balance-amount" style="color: var(--gold-light);" id="dash-tithe-balance">S/ 0.00</div>
           </div>
+
+          <div class="sub-balance-item" style="border-color: rgba(6, 182, 212, 0.35); background: rgba(6, 182, 212, 0.06);">
+            <div class="sub-balance-title">
+              <span style="font-weight: 800; color: var(--cyan); font-size: 0.95rem;">$</span>
+              <span>Ahorro en Dólares</span>
+            </div>
+            <div class="sub-balance-amount" style="color: var(--cyan);" id="dash-usd-balance">$ 0.00</div>
+          </div>
         </div>
       </div>
 
@@ -525,6 +533,12 @@
             <small style="color: var(--text-muted); font-size: 0.72rem;">Por defecto 26 días (Domingo a Viernes, excluyendo 4-5 sábados al mes).</small>
           </div>
 
+          <div class="form-group">
+            <label class="form-label" style="color: var(--cyan);">Tipo de Cambio USD a Soles (1 USD = S/.)</label>
+            <input type="number" id="cfg-exchange-rate" class="form-control" value="3.75" step="0.01" min="1">
+            <small style="color: var(--text-muted); font-size: 0.72rem;">Se usa para calcular el valor total consolidado de tu patrimonio.</small>
+          </div>
+
           <button class="btn btn-primary btn-block" onclick="saveFinancialConfig()">Guardar Parámetros</button>
 
           <hr style="border: 0; border-top: 1px solid var(--border-subtle); margin: 16px 0;">
@@ -739,11 +753,22 @@
         </div>
 
         <div class="form-group">
+          <label class="form-label">Cuenta de Origen (De donde sale)</label>
+          <select id="inp-transfer-origen" class="form-control">
+            <option value="cash">💵 Efectivo en Mano (Soles)</option>
+            <option value="bank">📱 Banco / Yape / Plin (Soles)</option>
+            <option value="savings">🛡️ Fondo de Ahorro (Soles)</option>
+            <option value="usdSavings">💵 Bóveda en Dólares ($ USD)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label class="form-label">Cuenta de Destino (A donde entra)</label>
           <select id="inp-transfer-destino" class="form-control">
-            <option value="bank">📱 Banco / Yape / Plin</option>
-            <option value="cash">💵 Efectivo en Mano</option>
-            <option value="savings">🛡️ Fondo de Ahorro</option>
+            <option value="bank">📱 Banco / Yape / Plin (Soles)</option>
+            <option value="cash">💵 Efectivo en Mano (Soles)</option>
+            <option value="savings">🛡️ Fondo de Ahorro (Soles)</option>
+            <option value="usdSavings">💵 Bóveda en Dólares ($ USD)</option>
           </select>
         </div>
 
@@ -1047,8 +1072,13 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">🛡️ Ahorros Previos Acumulados (Opcional)</label>
+          <label class="form-label">🛡️ Ahorros Previos en Soles (Opcional)</label>
           <input type="number" id="inp-init-savings" class="form-control form-control-mono" placeholder="0.00">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" style="color: var(--cyan);">💵 Ahorros Actuales en Dólares ($ USD)</label>
+          <input type="number" id="inp-init-usd" class="form-control form-control-mono" placeholder="0.00" style="border-color: rgba(6, 182, 212, 0.4);">
         </div>
 
         <div class="form-group">

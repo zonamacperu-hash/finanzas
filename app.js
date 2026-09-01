@@ -3,8 +3,9 @@
 // Initial Default State
 const DEFAULT_STATE = {
   accounts: {
-    cash: 0,     // Efectivo en mano
-    bank: 0      // Banco / Yape / Plin
+    cash: 0,        // Efectivo en mano
+    bank: 0,        // Banco / Yape / Plin
+    usdSavings: 0   // Bóveda de Ahorros en Dólares ($ USD)
   },
   funds: {
     savings: 0,  // Fondo de Ahorro Total Acumulado (20%)
@@ -23,6 +24,7 @@ const DEFAULT_STATE = {
   titheDeliveries: [],
   config: {
     currency: 'S/.',
+    exchangeRate: 3.75, // 1 USD = S/ 3.75
     tithePct: 10,
     savingsPct: 20,
     workDaysPerMonth: 26,
@@ -139,12 +141,14 @@ function loadSavedState() {
     const titheInp = document.getElementById('cfg-tithe-pct');
     const savInp = document.getElementById('cfg-savings-pct');
     const workInp = document.getElementById('cfg-workdays');
+    const tcInp = document.getElementById('cfg-exchange-rate');
     const passInp = document.getElementById('cfg-cloud-passcode');
 
     if (currInp) currInp.value = state.config.currency || 'S/.';
     if (titheInp) titheInp.value = state.config.tithePct || 10;
     if (savInp) savInp.value = state.config.savingsPct || 20;
     if (workInp) workInp.value = state.config.workDaysPerMonth || 26;
+    if (tcInp) tcInp.value = state.config.exchangeRate || 3.75;
     if (passInp) passInp.value = state.config.cloudPasscode || '';
   }
 
@@ -229,6 +233,11 @@ function formatMoney(amount) {
   const curr = (state.config && state.config.currency) ? state.config.currency : 'S/.';
   const num = Number(amount) || 0;
   return `${curr} ${num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatUSD(amount) {
+  const num = Number(amount) || 0;
+  return `$ ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`;
 }
 
 // Smart Allocation Calculator Engine
@@ -362,7 +371,11 @@ function renderDashboardBalances() {
   const bank = Number(state.accounts.bank) || 0;
   const savings = Number(state.funds.savings) || 0;
   const tithe = Number(state.funds.tithe) || 0;
-  const total = cash + bank + savings; // Net financial worth
+  const usdSavings = Number(state.accounts.usdSavings) || 0;
+  const tc = Number(state.config ? state.config.exchangeRate : 3.75) || 3.75;
+  const usdInSoles = usdSavings * tc;
+
+  const total = cash + bank + savings + usdInSoles; // Net consolidated financial worth
 
   const currentMonth = new Date().toISOString().substring(0, 7);
   
@@ -391,6 +404,9 @@ function renderDashboardBalances() {
   document.getElementById('dash-bank-balance').textContent = formatMoney(bank);
   document.getElementById('dash-savings-balance').textContent = formatMoney(savings);
   document.getElementById('dash-tithe-balance').textContent = formatMoney(tithe);
+  
+  const dashUsdEl = document.getElementById('dash-usd-balance');
+  if (dashUsdEl) dashUsdEl.textContent = formatUSD(usdSavings);
 
   document.getElementById('dash-month-income').textContent = formatMoney(monthIncome);
   document.getElementById('dash-month-expenses').textContent = formatMoney(monthExpenses);
@@ -459,6 +475,9 @@ function renderAccountsList() {
   const cash = Number(state.accounts.cash) || 0;
   const bank = Number(state.accounts.bank) || 0;
   const savings = Number(state.funds.savings) || 0;
+  const usdSavings = Number(state.accounts.usdSavings) || 0;
+  const tc = Number(state.config ? state.config.exchangeRate : 3.75) || 3.75;
+  const usdInSoles = usdSavings * tc;
 
   container.innerHTML = `
     <div class="tx-item">
@@ -466,7 +485,7 @@ function renderAccountsList() {
         <div class="tx-icon income">💵</div>
         <div class="tx-details">
           <h5>Efectivo en Mano</h5>
-          <div class="tx-meta">Billetera física / Caja chica</div>
+          <div class="tx-meta">Billetera física / Caja chica (Soles)</div>
         </div>
       </div>
       <div class="tx-right">
@@ -479,7 +498,7 @@ function renderAccountsList() {
         <div class="tx-icon savings">📱</div>
         <div class="tx-details">
           <h5>Banco / Yape / Plin</h5>
-          <div class="tx-meta">Cuentas digitales bancarias</div>
+          <div class="tx-meta">Cuentas digitales bancarias (Soles)</div>
         </div>
       </div>
       <div class="tx-right">
@@ -492,11 +511,24 @@ function renderAccountsList() {
         <div class="tx-icon tithe">🛡️</div>
         <div class="tx-details">
           <h5>Bóveda de Ahorro (20%)</h5>
-          <div class="tx-meta">Fondo protegido (Proyectos + Reserva)</div>
+          <div class="tx-meta">Fondo protegido en Soles (Proyectos + Reserva)</div>
         </div>
       </div>
       <div class="tx-right">
         <div class="tx-amount" style="color: var(--blue-light);">${formatMoney(savings)}</div>
+      </div>
+    </div>
+
+    <div class="tx-item" style="border-left: 3px solid var(--cyan);">
+      <div class="tx-left">
+        <div class="tx-icon" style="background: rgba(6, 182, 212, 0.15); color: var(--cyan); font-weight: 800; font-size: 1.1rem;">$</div>
+        <div class="tx-details">
+          <h5 style="color: var(--cyan);">Bóveda en Dólares ($ USD)</h5>
+          <div class="tx-meta">Equivalente a ${formatMoney(usdInSoles)} (T.C: ${tc.toFixed(2)})</div>
+        </div>
+      </div>
+      <div class="tx-right">
+        <div class="tx-amount" style="color: var(--cyan); font-weight: 800;">${formatUSD(usdSavings)}</div>
       </div>
     </div>
   `;
@@ -1085,20 +1117,55 @@ function submitTransferencia() {
     return;
   }
 
-  // Process balance transfer
-  if (fromAcc === 'savings') {
-    state.funds.savings = (Number(state.funds.savings) || 0) - amount;
-  } else {
-    state.accounts[fromAcc] = (Number(state.accounts[fromAcc]) || 0) - amount;
-  }
+  const tc = Number(state.config ? state.config.exchangeRate : 3.75) || 3.75;
+  let txDesc = (descInput && descInput.value.trim()) ? descInput.value.trim() : '';
 
-  if (toAcc === 'savings') {
-    state.funds.savings = (Number(state.funds.savings) || 0) + amount;
-  } else {
-    state.accounts[toAcc] = (Number(state.accounts[toAcc]) || 0) + amount;
+  // Case 1: From USD to Soles (Venta de dólares)
+  if (fromAcc === 'usdSavings' && toAcc !== 'usdSavings') {
+    if ((state.accounts.usdSavings || 0) < amount) {
+      alert(`Saldo insuficiente en dólares. Tienes ${formatUSD(state.accounts.usdSavings || 0)}.`);
+      return;
+    }
+    state.accounts.usdSavings = (Number(state.accounts.usdSavings) || 0) - amount;
+    const solesConverted = amount * tc;
+    if (toAcc === 'savings') {
+      state.funds.savings = (Number(state.funds.savings) || 0) + solesConverted;
+    } else {
+      state.accounts[toAcc] = (Number(state.accounts[toAcc]) || 0) + solesConverted;
+    }
+    if (!txDesc) txDesc = `Cambio de ${formatUSD(amount)} a ${formatMoney(solesConverted)} (T.C: ${tc.toFixed(2)})`;
   }
+  // Case 2: From Soles to USD (Compra de dólares)
+  else if (fromAcc !== 'usdSavings' && toAcc === 'usdSavings') {
+    const currentSoles = fromAcc === 'savings' ? (Number(state.funds.savings) || 0) : (Number(state.accounts[fromAcc]) || 0);
+    if (currentSoles < amount) {
+      alert(`Saldo insuficiente en soles. Tienes ${formatMoney(currentSoles)}.`);
+      return;
+    }
+    if (fromAcc === 'savings') {
+      state.funds.savings -= amount;
+    } else {
+      state.accounts[fromAcc] -= amount;
+    }
+    const usdConverted = amount / tc;
+    state.accounts.usdSavings = (Number(state.accounts.usdSavings) || 0) + usdConverted;
+    if (!txDesc) txDesc = `Compra de ${formatUSD(usdConverted)} con ${formatMoney(amount)} (T.C: ${tc.toFixed(2)})`;
+  }
+  // Case 3: Soles to Soles
+  else {
+    if (fromAcc === 'savings') {
+      state.funds.savings = (Number(state.funds.savings) || 0) - amount;
+    } else {
+      state.accounts[fromAcc] = (Number(state.accounts[fromAcc]) || 0) - amount;
+    }
 
-  const desc = (descInput && descInput.value.trim()) ? descInput.value.trim() : `Transferencia de ${fromAcc} a ${toAcc}`;
+    if (toAcc === 'savings') {
+      state.funds.savings = (Number(state.funds.savings) || 0) + amount;
+    } else {
+      state.accounts[toAcc] = (Number(state.accounts[toAcc]) || 0) + amount;
+    }
+    if (!txDesc) txDesc = `Transferencia de ${fromAcc} a ${toAcc}`;
+  }
 
   state.transactions.unshift({
     id: 'tx_' + Date.now(),
@@ -1107,12 +1174,13 @@ function submitTransferencia() {
     accountId: fromAcc,
     toAccountId: toAcc,
     category: 'Transferencia',
-    description: desc,
+    description: txDesc,
     date: new Date().toISOString().split('T')[0],
     createdAt: Date.now()
   });
 
   montoInput.value = '';
+  if (descInput) descInput.value = '';
   closeModal('modal-transfer');
 
   persistState();
@@ -1399,11 +1467,13 @@ function saveFinancialConfig() {
   const titheInp = document.getElementById('cfg-tithe-pct');
   const savInp = document.getElementById('cfg-savings-pct');
   const workInp = document.getElementById('cfg-workdays');
+  const tcInp = document.getElementById('cfg-exchange-rate');
 
   state.config.currency = currInp ? currInp.value.trim() : 'S/.';
   state.config.tithePct = parseFloat(titheInp ? titheInp.value : 10) || 10;
   state.config.savingsPct = parseFloat(savInp ? savInp.value : 20) || 20;
   state.config.workDaysPerMonth = parseInt(workInp ? workInp.value : 26, 10) || 26;
+  state.config.exchangeRate = parseFloat(tcInp ? tcInp.value : 3.75) || 3.75;
 
   persistState();
   updateUI();
@@ -1498,11 +1568,13 @@ function openSaldoInicialModal() {
   const cashInp = document.getElementById('inp-init-cash');
   const bankInp = document.getElementById('inp-init-bank');
   const savInp = document.getElementById('inp-init-savings');
+  const usdInp = document.getElementById('inp-init-usd');
   const titheInp = document.getElementById('inp-init-tithe');
 
   if (cashInp) cashInp.value = Number(state.accounts.cash) || '';
   if (bankInp) bankInp.value = Number(state.accounts.bank) || '';
   if (savInp) savInp.value = Number(state.funds.savings) || '';
+  if (usdInp) usdInp.value = Number(state.accounts.usdSavings) || '';
   if (titheInp) titheInp.value = Number(state.funds.tithe) || '';
 }
 
@@ -1510,16 +1582,19 @@ function submitSaldoInicial() {
   const cashInp = document.getElementById('inp-init-cash');
   const bankInp = document.getElementById('inp-init-bank');
   const savInp = document.getElementById('inp-init-savings');
+  const usdInp = document.getElementById('inp-init-usd');
   const titheInp = document.getElementById('inp-init-tithe');
 
   const cash = parseFloat(cashInp ? cashInp.value : 0) || 0;
   const bank = parseFloat(bankInp ? bankInp.value : 0) || 0;
   const savings = parseFloat(savInp ? savInp.value : 0) || 0;
+  const usdSavings = parseFloat(usdInp ? usdInp.value : 0) || 0;
   const tithe = parseFloat(titheInp ? titheInp.value : 0) || 0;
 
   state.accounts.cash = cash;
   state.accounts.bank = bank;
   state.funds.savings = savings;
+  state.accounts.usdSavings = usdSavings;
   state.funds.tithe = tithe;
 
   // Add initial balance record in history
@@ -1529,7 +1604,7 @@ function submitSaldoInicial() {
     amount: cash + bank,
     accountId: 'cash',
     category: 'Saldo Inicial',
-    description: `Apertura de saldos: Efectivo ${formatMoney(cash)}, Banco ${formatMoney(bank)}`,
+    description: `Apertura de saldos: Efectivo ${formatMoney(cash)}, Banco ${formatMoney(bank)}, Dólares ${formatUSD(usdSavings)}`,
     date: new Date().toISOString().split('T')[0],
     createdAt: Date.now()
   });
