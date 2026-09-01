@@ -220,6 +220,17 @@ body {
   border-color: var(--border-strong);
 }
 
+.btn-quick-danger {
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--rose-light);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+.btn-quick-danger:hover {
+  background: rgba(244, 63, 94, 0.25);
+  border-color: rgba(244, 63, 94, 0.5);
+}
+
 /* Navigation Tabs (Top & Mobile Bottom) */
 .nav-container {
   display: flex;
@@ -1262,11 +1273,59 @@ select.form-control {
   }
 
   .app-header {
-    padding: 10px 14px;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  .brand-section {
+    gap: 8px;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .brand-icon-wrapper {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
   }
 
   .brand-title {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
+    white-space: nowrap;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .status-badge {
+    padding: 5px 8px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .app-header .btn-quick {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+
+  .app-header .btn-quick svg {
+    margin: 0;
   }
 
   .app-header .btn-quick span {
