@@ -571,6 +571,12 @@ function buildTxItemHTML(tx, showDelete = false) {
     sign = '←';
     amountClass = 'neg';
     accountLabel = 'Uso Proyecto';
+  } else if (tx.type === 'initial_balance') {
+    iconClass = 'income';
+    iconEmoji = '🏁';
+    sign = '⚡';
+    amountClass = 'pos';
+    accountLabel = 'Saldo Inicial';
   }
 
   const deleteBtn = showDelete ? `
@@ -1483,6 +1489,53 @@ function resetAllDataConfirm() {
     updateUI();
     alert('Datos reiniciados.');
   }
+}
+
+function openSaldoInicialModal() {
+  openModal('modal-saldo-inicial');
+  const cashInp = document.getElementById('inp-init-cash');
+  const bankInp = document.getElementById('inp-init-bank');
+  const savInp = document.getElementById('inp-init-savings');
+  const titheInp = document.getElementById('inp-init-tithe');
+
+  if (cashInp) cashInp.value = Number(state.accounts.cash) || '';
+  if (bankInp) bankInp.value = Number(state.accounts.bank) || '';
+  if (savInp) savInp.value = Number(state.funds.savings) || '';
+  if (titheInp) titheInp.value = Number(state.funds.tithe) || '';
+}
+
+function submitSaldoInicial() {
+  const cashInp = document.getElementById('inp-init-cash');
+  const bankInp = document.getElementById('inp-init-bank');
+  const savInp = document.getElementById('inp-init-savings');
+  const titheInp = document.getElementById('inp-init-tithe');
+
+  const cash = parseFloat(cashInp ? cashInp.value : 0) || 0;
+  const bank = parseFloat(bankInp ? bankInp.value : 0) || 0;
+  const savings = parseFloat(savInp ? savInp.value : 0) || 0;
+  const tithe = parseFloat(titheInp ? titheInp.value : 0) || 0;
+
+  state.accounts.cash = cash;
+  state.accounts.bank = bank;
+  state.funds.savings = savings;
+  state.funds.tithe = tithe;
+
+  // Add initial balance record in history
+  state.transactions.unshift({
+    id: 'tx_init_' + Date.now(),
+    type: 'initial_balance',
+    amount: cash + bank,
+    accountId: 'cash',
+    category: 'Saldo Inicial',
+    description: `Apertura de saldos: Efectivo ${formatMoney(cash)}, Banco ${formatMoney(bank)}`,
+    date: new Date().toISOString().split('T')[0],
+    createdAt: Date.now()
+  });
+
+  closeModal('modal-saldo-inicial');
+  persistState();
+  updateUI();
+  alert('¡Saldos iniciales establecidos con éxito!');
 }
 
 // Modal Helpers
