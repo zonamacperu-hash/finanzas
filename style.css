@@ -1269,7 +1269,7 @@ select.form-control {
     font-size: 1.15rem;
   }
 
-  .btn-quick span {
+  .app-header .btn-quick span {
     display: none;
   }
 }

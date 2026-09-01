@@ -99,7 +99,12 @@
 
       <!-- Hero Main Balance Card -->
       <div class="card hero-card" style="margin-bottom: 20px;">
-        <div class="hero-balance-label">Patrimonio / Saldo Total Neto</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <div class="hero-balance-label">Patrimonio / Saldo Total Neto</div>
+          <button class="btn btn-ghost" style="padding: 5px 12px; font-size: 0.8rem; font-weight: 700; border-color: rgba(16, 185, 129, 0.4); color: var(--emerald-light); background: rgba(16, 185, 129, 0.12); border-radius: var(--radius-full);" onclick="openSaldoInicialModal()">
+            💰 Saldo Inicial
+          </button>
+        </div>
         <div class="hero-balance-value" id="dash-total-balance">S/ 0.00</div>
         
         <div class="sub-balances-row">
@@ -521,6 +526,12 @@
           </div>
 
           <button class="btn btn-primary btn-block" onclick="saveFinancialConfig()">Guardar Parámetros</button>
+
+          <hr style="border: 0; border-top: 1px solid var(--border-subtle); margin: 16px 0;">
+
+          <button class="btn btn-ghost btn-block" style="color: var(--emerald-light); border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.08);" onclick="openSaldoInicialModal()">
+            💰 Ajustar Saldo Inicial de Apertura
+          </button>
         </div>
 
         <!-- Backup & Cloud Sync -->
