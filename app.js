@@ -187,7 +187,7 @@ async function fetchCloudState() {
 }
 
 async function pushCloudState() {
-  const passcode = state.config.cloudPasscode || 'admin777';
+  const passcode = state.config.cloudPasscode || '';
   const syncBadge = document.getElementById('sync-status');
   const syncText = document.getElementById('sync-text');
 
