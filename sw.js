@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finanzas-cache-v6';
+const CACHE_NAME = 'finanzas-cache-v7';
 const ASSETS = [
   './',
   './index.html',
@@ -33,19 +33,27 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// Network-First Strategy: Always fetch fresh code when online, fallback to cache when offline
 self.addEventListener('fetch', (e) => {
-  // Let Cloudflare API requests bypass cache
   if (e.request.url.includes('/api/')) {
     return;
   }
   
   e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      return cachedResponse || fetch(e.request).catch(() => {
-        if (e.request.destination === 'document') {
-          return caches.match('./index.html');
+    fetch(e.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(e.request, responseClone);
+          });
         }
-      });
-    })
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(e.request).then((cached) => {
+          return cached || (e.request.destination === 'document' ? caches.match('./index.html') : null);
+        });
+      })
   );
 });

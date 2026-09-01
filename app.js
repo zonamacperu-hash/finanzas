@@ -45,7 +45,9 @@ window.addEventListener('DOMContentLoaded', () => {
   // Register PWA Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('Finanzas PWA Service Worker registrado', reg))
+      .then(reg => {
+        reg.update();
+      })
       .catch(err => console.warn('Error en Service Worker', err));
   }
 
