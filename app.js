@@ -26,7 +26,7 @@ const DEFAULT_STATE = {
     tithePct: 10,
     savingsPct: 20,
     workDaysPerMonth: 26,
-    cloudPasscode: 'admin777',
+    cloudPasscode: '',
     cloudSyncEnabled: false
   }
 };
@@ -1490,6 +1490,13 @@ function openModal(id) {
   const modal = document.getElementById(id);
   if (modal) {
     modal.classList.add('open');
+    if (id === 'modal-sync') {
+      const passInp = document.getElementById('modal-sync-pass');
+      if (passInp) {
+        passInp.value = '';
+        passInp.focus();
+      }
+    }
   }
 }
 
