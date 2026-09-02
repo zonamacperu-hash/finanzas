@@ -22,19 +22,30 @@ const DEFAULT_STATE = {
     { id: 'f3', name: 'Internet y Celular', amount: 85, dueDay: 20, category: 'Conectividad', isPaidThisMonth: false, lastPaidMonth: '' }
   ],
   titheDeliveries: [],
+  lastUpdated: 0,
   config: {
     currency: 'S/.',
     exchangeRate: 3.75, // 1 USD = S/ 3.75
     tithePct: 10,
     savingsPct: 20,
     workDaysPerMonth: 26,
-    cloudPasscode: '',
-    cloudSyncEnabled: false
+    cloudPasscode: 'admin777',
+    cloudSyncEnabled: true
   }
 };
 
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 const STORAGE_KEY = 'finanzas_pro_state_v1';
+
+// Helper to determine if state contains user data
+function hasUserData(s) {
+  if (!s) return false;
+  const hasTx = Array.isArray(s.transactions) && s.transactions.length > 0;
+  const hasAccounts = s.accounts && (Number(s.accounts.cash) > 0 || Number(s.accounts.bank) > 0 || Number(s.accounts.usdSavings) > 0);
+  const hasFunds = s.funds && (Number(s.funds.savings) > 0 || Number(s.funds.tithe) > 0);
+  const hasDeliveries = Array.isArray(s.titheDeliveries) && s.titheDeliveries.length > 0;
+  return hasTx || hasAccounts || hasFunds || hasDeliveries;
+}
 
 // DOM Initialization
 window.addEventListener('DOMContentLoaded', () => {
@@ -53,12 +64,25 @@ window.addEventListener('DOMContentLoaded', () => {
       .catch(err => console.warn('Error en Service Worker', err));
   }
 
-  // Periodic Cloud Sync
+  // Periodic Cloud Sync every 20 seconds
   setInterval(() => {
     if (state.config && state.config.cloudSyncEnabled && document.visibilityState === 'visible') {
       fetchCloudState();
     }
-  }, 30000);
+  }, 20000);
+
+  // Auto-sync immediately when returning to tab or waking screen
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.config && state.config.cloudSyncEnabled) {
+      fetchCloudState();
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    if (state.config && state.config.cloudSyncEnabled) {
+      fetchCloudState();
+    }
+  });
 });
 
 // Setup default form dates to today
@@ -111,6 +135,8 @@ function loadSavedState() {
       state.accounts = Object.assign({}, DEFAULT_STATE.accounts, parsed.accounts || {});
       state.funds = Object.assign({}, DEFAULT_STATE.funds, parsed.funds || {});
       state.config = Object.assign({}, DEFAULT_STATE.config, parsed.config || {});
+      if (!state.config.cloudPasscode) state.config.cloudPasscode = 'admin777';
+      if (state.config.cloudSyncEnabled === undefined) state.config.cloudSyncEnabled = true;
       if (!Array.isArray(state.transactions)) state.transactions = [];
       if (!Array.isArray(state.fixedPayments)) state.fixedPayments = DEFAULT_STATE.fixedPayments;
       if (!Array.isArray(state.projects)) {
@@ -133,6 +159,9 @@ function loadSavedState() {
     } catch (e) {
       console.error('Error parseando estado local', e);
     }
+  } else {
+    // New device / fresh profile
+    state = JSON.parse(JSON.stringify(DEFAULT_STATE));
   }
 
   // Load config inputs
@@ -149,15 +178,17 @@ function loadSavedState() {
     if (savInp) savInp.value = state.config.savingsPct || 20;
     if (workInp) workInp.value = state.config.workDaysPerMonth || 26;
     if (tcInp) tcInp.value = state.config.exchangeRate || 3.75;
-    if (passInp) passInp.value = state.config.cloudPasscode || '';
+    if (passInp) passInp.value = state.config.cloudPasscode || 'admin777';
   }
 
+  // Always attempt cloud synchronization on startup
   if (state.config && state.config.cloudSyncEnabled) {
     fetchCloudState();
   }
 }
 
 function persistState() {
+  state.lastUpdated = Date.now();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   if (state.config && state.config.cloudSyncEnabled) {
     pushCloudState();
@@ -169,31 +200,73 @@ async function fetchCloudState() {
   const syncBadge = document.getElementById('sync-status');
   const syncText = document.getElementById('sync-text');
 
+  if (syncBadge && syncText) {
+    syncBadge.className = 'status-badge sync-working';
+    syncText.textContent = 'Sincronizando...';
+  }
+
   try {
-    const res = await fetch('./api/state');
+    const res = await fetch('./api/state', { cache: 'no-store' });
     if (!res.ok) throw new Error('API request failed');
     const data = await res.json();
     
-    if (data && !data.empty && data.transactions) {
-      state = data;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      updateUI();
-    }
-    
-    if (syncBadge && syncText) {
-      syncBadge.className = 'status-badge sync-ok';
-      syncText.textContent = 'Nube Sincronizada';
+    if (data && !data.empty && (data.accounts || data.transactions)) {
+      const cloudTime = Number(data.lastUpdated) || 0;
+      const localTime = Number(state.lastUpdated) || 0;
+      const localHas = hasUserData(state);
+      const cloudHas = hasUserData(data);
+
+      // Cloud takes precedence if:
+      // 1. Local device is clean/empty (new device)
+      // 2. Cloud timestamp is newer or equal
+      // 3. Local has no explicit timestamp but cloud has data
+      if (!localHas || cloudTime >= localTime || (!localTime && cloudHas)) {
+        state = Object.assign({}, DEFAULT_STATE, data);
+        state.accounts = Object.assign({}, DEFAULT_STATE.accounts, data.accounts || {});
+        state.funds = Object.assign({}, DEFAULT_STATE.funds, data.funds || {});
+        state.config = Object.assign({}, DEFAULT_STATE.config, data.config || {});
+        if (!state.config.cloudPasscode) state.config.cloudPasscode = 'admin777';
+        state.config.cloudSyncEnabled = true;
+        if (!Array.isArray(state.transactions)) state.transactions = [];
+        if (!Array.isArray(state.fixedPayments)) state.fixedPayments = DEFAULT_STATE.fixedPayments;
+        if (!Array.isArray(state.projects)) state.projects = DEFAULT_STATE.projects;
+        if (!Array.isArray(state.titheDeliveries)) state.titheDeliveries = [];
+        state.lastUpdated = cloudTime || Date.now();
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        updateUI();
+      } else if (localHas && localTime > cloudTime) {
+        // Local state has newer changes, update cloud
+        await pushCloudState();
+      }
+      
+      if (syncBadge && syncText) {
+        syncBadge.className = 'status-badge sync-ok';
+        syncText.textContent = 'Nube Sincronizada';
+      }
+      return true;
+    } else if (data && data.empty) {
+      // Cloud is completely empty. If local has data, upload to initialize cloud!
+      if (hasUserData(state)) {
+        await pushCloudState();
+      }
+      if (syncBadge && syncText) {
+        syncBadge.className = 'status-badge sync-ok';
+        syncText.textContent = 'Nube Sincronizada';
+      }
+      return false;
     }
   } catch (err) {
     if (syncBadge && syncText) {
       syncBadge.className = 'status-badge';
       syncText.textContent = 'Local / Offline';
     }
+    return false;
   }
 }
 
 async function pushCloudState() {
-  const passcode = state.config.cloudPasscode || '';
+  const passcode = (state.config && state.config.cloudPasscode) ? state.config.cloudPasscode : 'admin777';
   const syncBadge = document.getElementById('sync-status');
   const syncText = document.getElementById('sync-text');
 
@@ -201,6 +274,8 @@ async function pushCloudState() {
     syncBadge.className = 'status-badge sync-working';
     syncText.textContent = 'Guardando en la Nube...';
   }
+
+  if (!state.lastUpdated) state.lastUpdated = Date.now();
 
   try {
     const res = await fetch('./api/state', {
@@ -1480,9 +1555,9 @@ function saveFinancialConfig() {
   alert('Parámetros guardados con éxito.');
 }
 
-function submitSyncPasscode() {
+async function submitSyncPasscode() {
   const passInp = document.getElementById('modal-sync-pass');
-  const code = passInp ? passInp.value.trim() : '';
+  const code = passInp ? passInp.value.trim() : 'admin777';
   if (!code) {
     alert('Ingresa una clave de seguridad.');
     return;
@@ -1491,16 +1566,28 @@ function submitSyncPasscode() {
   state.config.cloudPasscode = code;
   state.config.cloudSyncEnabled = true;
   closeModal('modal-sync');
-  pushCloudState();
+
+  // Pull existing cloud state first to avoid wiping data
+  const fetched = await fetchCloudState();
+  if (!fetched && hasUserData(state)) {
+    await pushCloudState();
+  }
 }
 
-function syncNowWithCloud() {
+async function syncNowWithCloud() {
   const passInp = document.getElementById('cfg-cloud-passcode');
   if (passInp && passInp.value.trim()) {
     state.config.cloudPasscode = passInp.value.trim();
-    state.config.cloudSyncEnabled = true;
+  } else if (!state.config.cloudPasscode) {
+    state.config.cloudPasscode = 'admin777';
   }
-  pushCloudState();
+  state.config.cloudSyncEnabled = true;
+
+  // Pull existing cloud state first
+  const fetched = await fetchCloudState();
+  if (!fetched && hasUserData(state)) {
+    await pushCloudState();
+  }
 }
 
 function exportDataJSON() {
@@ -1623,7 +1710,7 @@ function openModal(id) {
     if (id === 'modal-sync') {
       const passInp = document.getElementById('modal-sync-pass');
       if (passInp) {
-        passInp.value = '';
+        passInp.value = (state.config && state.config.cloudPasscode) ? state.config.cloudPasscode : 'admin777';
         passInp.focus();
       }
     }
