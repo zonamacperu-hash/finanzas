@@ -784,9 +784,14 @@ function renderFixedPayments() {
           <button class="btn ${isPaid ? 'btn-ghost' : 'btn-primary'}" style="padding: 6px 12px; font-size: 0.8rem;" onclick="toggleFixedBillPaid('${bill.id}')">
             ${isPaid ? '↩ Desmarcar' : '✓ Marcar como Pagado'}
           </button>
-          <button class="tx-delete-btn" onclick="deleteFixedBill('${bill.id}')" title="Eliminar cuenta fija">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-          </button>
+          <div style="display: flex; gap: 4px;">
+            <button class="tx-delete-btn" style="color: var(--blue-light); border-color: rgba(59, 130, 246, 0.3);" onclick="openEditFixedBill('${bill.id}')" title="Editar pago fijo">
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            </button>
+            <button class="tx-delete-btn" onclick="deleteFixedBill('${bill.id}')" title="Eliminar cuenta fija">
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -1262,13 +1267,54 @@ function submitTransferencia() {
   updateUI();
 }
 
-// 4. Submit Nuevo Pago Fijo
-function submitNuevoPagoFijo() {
+// 4. Modal Helpers & Submit Nuevo / Editar Pago Fijo
+function openNewFixedBill() {
+  const titleEl = document.getElementById('modal-fijo-title-text');
+  const idInput = document.getElementById('inp-fijo-id');
   const nombreInput = document.getElementById('inp-fijo-nombre');
   const montoInput = document.getElementById('inp-fijo-monto');
   const diaInput = document.getElementById('inp-fijo-dia');
   const catSelect = document.getElementById('inp-fijo-cat');
 
+  if (titleEl) titleEl.textContent = 'Nuevo Pago Fijo Recurrente';
+  if (idInput) idInput.value = '';
+  if (nombreInput) nombreInput.value = '';
+  if (montoInput) montoInput.value = '';
+  if (diaInput) diaInput.value = 15;
+  if (catSelect) catSelect.value = 'Vivienda';
+
+  openModal('modal-fijo');
+}
+
+function openEditFixedBill(billId) {
+  const bill = (state.fixedPayments || []).find(b => b.id === billId);
+  if (!bill) return;
+
+  const titleEl = document.getElementById('modal-fijo-title-text');
+  const idInput = document.getElementById('inp-fijo-id');
+  const nombreInput = document.getElementById('inp-fijo-nombre');
+  const montoInput = document.getElementById('inp-fijo-monto');
+  const diaInput = document.getElementById('inp-fijo-dia');
+  const catSelect = document.getElementById('inp-fijo-cat');
+
+  if (titleEl) titleEl.textContent = 'Editar Pago Fijo';
+  if (idInput) idInput.value = bill.id;
+  if (nombreInput) nombreInput.value = bill.name || '';
+  if (montoInput) montoInput.value = bill.amount || '';
+  if (diaInput) diaInput.value = bill.dueDay || 15;
+  if (catSelect) catSelect.value = bill.category || 'Vivienda';
+
+  openModal('modal-fijo');
+}
+
+function submitNuevoPagoFijo() {
+  const idInput = document.getElementById('inp-fijo-id');
+  const nombreInput = document.getElementById('inp-fijo-nombre');
+  const montoInput = document.getElementById('inp-fijo-monto');
+  const diaInput = document.getElementById('inp-fijo-dia');
+  const catSelect = document.getElementById('inp-fijo-cat');
+
+  const editId = idInput ? idInput.value.trim() : '';
   const nombre = nombreInput ? nombreInput.value.trim() : '';
   const monto = parseFloat(montoInput ? montoInput.value : 0);
   const dia = parseInt(diaInput ? diaInput.value : 15, 10);
@@ -1279,18 +1325,31 @@ function submitNuevoPagoFijo() {
     return;
   }
 
-  state.fixedPayments.push({
-    id: 'f_' + Date.now(),
-    name: nombre,
-    amount: monto,
-    dueDay: dia,
-    category: cat,
-    isPaidThisMonth: false,
-    lastPaidMonth: ''
-  });
+  if (editId) {
+    // Edit existing payment
+    const bill = state.fixedPayments.find(b => b.id === editId);
+    if (bill) {
+      bill.name = nombre;
+      bill.amount = monto;
+      bill.dueDay = dia;
+      bill.category = cat;
+    }
+  } else {
+    // Create new payment
+    state.fixedPayments.push({
+      id: 'f_' + Date.now(),
+      name: nombre,
+      amount: monto,
+      dueDay: dia,
+      category: cat,
+      isPaidThisMonth: false,
+      lastPaidMonth: ''
+    });
+  }
 
-  nombreInput.value = '';
-  montoInput.value = '';
+  if (nombreInput) nombreInput.value = '';
+  if (montoInput) montoInput.value = '';
+  if (idInput) idInput.value = '';
   closeModal('modal-fijo');
 
   persistState();

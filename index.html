@@ -357,7 +357,7 @@
               Registra alquiler, luz, agua, internet, deudas y suscripciones para mantenerlas al día.
             </p>
           </div>
-          <button class="btn btn-primary" onclick="openModal('modal-fijo')">+ Nuevo Pago Fijo</button>
+          <button class="btn btn-primary" onclick="openNewFixedBill()">+ Nuevo Pago Fijo</button>
         </div>
 
         <div class="fixed-bills-grid" id="fixed-bills-container">
@@ -790,11 +790,12 @@
       <div class="modal-header">
         <h3 class="modal-title" style="color: var(--blue-light);">
           <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          <span>Nuevo Pago Fijo Recurrente</span>
+          <span id="modal-fijo-title-text">Nuevo Pago Fijo Recurrente</span>
         </h3>
         <button class="modal-close" onclick="closeModal('modal-fijo')">&times;</button>
       </div>
       <div class="modal-body">
+        <input type="hidden" id="inp-fijo-id" value="">
         <div class="form-group">
           <label class="form-label">Nombre del Servicio / Compromiso</label>
           <input type="text" id="inp-fijo-nombre" class="form-control" placeholder="Ej: Alquiler, Luz, Internet, Cuota de préstamo...">
